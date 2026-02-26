@@ -1,0 +1,10 @@
+{
+  "paths": {
+    "download_folder": "images",
+    "home_directory_name": "phenomobile"
+  },
+  "data_source": {
+    "type": "server",
+    "description": "Default data source is server (credentials in .env)"
+  }
+}

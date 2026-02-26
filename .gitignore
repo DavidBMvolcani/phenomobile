@@ -1,0 +1,17 @@
+# Data and Images (Keep these on G-Drive, not Git!)
+datasets/
+images/
+outputs/
+examples/
+documentation/
+
+# Python clutter
+__pycache__/
+*.py[cod]
+.env
+venv/
+.ipynb_checkpoints/
+
+# OS clutter
+desktop.ini
+*.lnk

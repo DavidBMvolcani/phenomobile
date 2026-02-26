@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug Phenomobile Merge",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "merge",
+                "--hp-dataset", "hyper_sp_imgs_dataset_created_at_20251229_from_BneiAtarot_2026-01-04 15.csv",
+                "--ref-dataset", "Anthocyanin_BENI_ATAROT_2025-12-25.csv",
+                "--project", "lettuce_BENI_ATAROT"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        }
+    ]
+}

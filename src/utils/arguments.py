@@ -51,6 +51,7 @@ Examples:
     _add_create_parser(subparsers)
     _add_merge_parser(subparsers)
     _add_train_parser(subparsers)
+    _add_plot_parser(subparsers)
     
     return parser
 
@@ -177,6 +178,72 @@ def _add_train_parser(subparsers) -> None:
     )
     
     train_parser.add_argument(
+        '--plot-separate',
+        action='store_true',
+        help='Create separate plots for each condition'
+    )
+
+
+def _add_plot_parser(subparsers) -> None:
+    """Add plotting subcommand parser."""
+    plot_parser = subparsers.add_parser(
+        'plot',
+        help='Generate plots from datasets'
+    )
+    
+    plot_parser.add_argument(
+        '--dataset',
+        type=str,
+        required=True,
+        help='Path to dataset file'
+    )
+    
+    plot_parser.add_argument(
+        '--type',
+        type=str,
+        choices=['regression', 'anthocyanin', 'r2-score-of-ndi'],
+        required=True,
+        help='Type of plot to generate'
+    )
+    
+    plot_parser.add_argument(
+        '--features',
+        type=str,
+        help='Comma-separated list of feature columns'
+    )
+    
+    plot_parser.add_argument(
+        '--target',
+        type=str,
+        help='Target column name'
+    )
+    
+    plot_parser.add_argument(
+        '--indicator',
+        type=str,
+        default='catalog id',
+        help='Indicator column for anthocyanin plots'
+    )
+    
+    plot_parser.add_argument(
+        '--condition',
+        type=str,
+        help='Filter condition for plots'
+    )
+    
+    plot_parser.add_argument(
+        '--model',
+        type=str,
+        help='Model name for NDI plots'
+    )
+    
+    plot_parser.add_argument(
+        '--show-plots',
+        action='store_true',
+        help='Display plots interactively (default: save only)'
+    )
+    
+    plot_parser.add_argument(
         '--plot-separate',
         action='store_true',
         help='Create separate plots for each condition'

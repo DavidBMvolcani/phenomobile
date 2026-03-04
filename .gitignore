@@ -1,15 +1,13 @@
 # Data and Images (Keep these on G-Drive, not Git!)
-datasets/
 images/
 outputs/
-examples/
 documentation/
 
 # Python clutter
 __pycache__/
 *.py[cod]
 .env
-venv/
+.venv/
 .ipynb_checkpoints/
 
 # OS clutter

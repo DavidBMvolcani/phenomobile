@@ -19,6 +19,18 @@ from utils.logger import get_logger, log_execution_time, log_step, log_data_info
 from utils.config import ConfigManager
 
 
+def _get_training_class(config: ConfigManager):
+    """Get appropriate training class based on project."""
+    project_name = config.get('metadata.project_name', '')
+    
+    if 'Anthocyanin' in project_name:
+        from ml.anthocyanin_training import anthocyanin_training as TrainingClass
+    else:
+        from ml.training import training as TrainingClass
+    
+    return TrainingClass
+
+
 class DatasetCreationWorkflow:
     """Workflow for creating datasets from raw data."""
     
@@ -42,6 +54,10 @@ class DatasetCreationWorkflow:
             args: Parsed command line arguments
         """
         log_step("Initializing dataset creation")
+        
+        # Validate thermal processing requirements
+        if args.get('th', False):
+            self._validate_thermal_requirements()
         
         # Extract NDI tuple if provided
         ndi_tuple = args.get('ndi_tuple')
@@ -70,6 +86,31 @@ class DatasetCreationWorkflow:
             
         if hasattr(ds_creation, 'merged_img_df') and not ds_creation.merged_img_df.empty:
             log_data_info(ds_creation.merged_img_df, "Merged dataset")
+    
+    def _validate_thermal_requirements(self) -> None:
+        """Validate that thermal processing requirements are met."""
+        try:
+            # Test if FLIR path is accessible
+            import sys
+            if self.flir_path not in sys.path:
+                sys.path.append(self.flir_path)
+            
+            # Try to import the module
+            import flir_image_extractor
+            
+            # Try to create an instance (basic validation)
+            test_extractor = flir_image_extractor.FlirImageExtractor()
+            
+            self.logger.info("FLIR image extractor validation passed")
+            
+        except ImportError as e:
+            error_msg = f"Thermal processing requested but FLIR image extractor is not available: {e}"
+            self.logger.error(error_msg)
+            raise ImportError(error_msg)
+        except Exception as e:
+            error_msg = f"FLIR image extractor validation failed: {e}"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
 
 class DatasetMergeWorkflow:
@@ -170,9 +211,10 @@ class MLTrainingWorkflow:
         self.logger.info(f"Target: {target}")
         
         # Initialize training
+        TrainingClass = _get_training_class(self.config)
         ml = TrainingClass(
-            ENV_FILE=False,
             dataset_name=dataset_path,
+            config=self.config,
             task=task,
             model=model
         )
@@ -203,55 +245,15 @@ class MLTrainingWorkflow:
         print("\n=== MODEL EVALUATION RESULTS ===")
         print(results_df.to_string(index=False))
         
-        # Generate plots for regression tasks
-        if task == 'regression':
-            if args.get('plot_separate'):
-                self._generate_plots(ml, features, target, args)
-            else:
-                self._generate_single_plot(ml, features, target, args)
-        
         return results_df
+    
+    def train_models_without_plotting(self, args: Dict) -> None:
+        """Train models without plotting (for inheritance)."""
+        return self.train_models(args)
     
     def _handle_regression_task(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> pd.DataFrame:
         """Handle regression task evaluation."""
         results_df = ml.evaluate_regression_models(features, target)
-        
-        # Apply filtering if specified (only for Anthocyanin projects)
-        if args.get('filter') == 'light':
-            # Get project name from config
-            project_name = self.config.get('metadata', {}).get('project_name', '')
-            
-            if project_name == 'Anthocyanin_BENI_ATAROT':
-                self.logger.info("Detected Anthocyanin project, applying light filtering")
-                
-                # Get filter indicator from config
-                filter_indicator = self.config.get('parameters', {}).get('indicator', 'catalog id')
-                
-                # Get categories from config and map to light conditions
-                categories = self.config.get('categories', {})
-                
-                light_conditions = [
-                    ('White and Blue Led', categories.get('RED_white_blue_led_ids', []) + categories.get('GREEN_white_blue_led_ids', [])),
-                    ('White Led', categories.get('RED_white_led_ids', []) + categories.get('GREEN_white_led_ids', [])),
-                    ('Shade', categories.get('RED_Shade_ids', []) + categories.get('GREEN_Shade_ids', [])),
-                    ('Control', categories.get('RED_Control_ids', []) + categories.get('GREEN_Control_ids', []))
-                ]
-                
-                for condition_name, ids in light_conditions:
-                    if ids:  # Only process if there are IDs for this condition
-                        self.logger.info(f"Evaluating for light condition: {condition_name}")
-                        filtered_results = ml.evaluate_regression_models(
-                            features, target,
-                            filter_df=True,
-                            filter_cond=condition_name,
-                            filter_indicator=filter_indicator
-                        )
-                        filtered_results[filter_indicator] = condition_name
-                        results_df = pd.concat([results_df, filtered_results], ignore_index=True)
-            else:
-                self.logger.warning(f"Light filtering specified but project '{project_name}' is not supported for light filtering")
-                self.logger.info("Skipping light filtering")
-        
         return results_df
     
     def _handle_classification_task(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> pd.DataFrame:
@@ -298,17 +300,21 @@ class MLTrainingWorkflow:
         predictive_features = [f for f in features if f != target]
         
         if len(predictive_features) == 1:
-            # Use existing single feature plotting
+            # Use plotting module for single feature plotting
+            from plotting.anthocyanin_plots import plot_anthocyanin_linear_regression
+            
             plot_feature = [features[0]]  # First feature
-            plt = ml.plot_linear_regression(
-                plot_feature, target,
+            plt = plot_anthocyanin_linear_regression(
+                plot_feature, target, ml.df,
                 indecator='catalog id',
-                show=False
+                show=False,
+                categories=ml.config.get('categories', {}) if hasattr(ml, 'config') and ml.config else {}
             )
         else:
-            # Use new prediction vs actual plotting for multi-feature models
-            plt = ml.plot_prediction_vs_actual(
-                features, target,
+            # Use plotting module for prediction vs actual plotting
+            from plotting.base_plots import plot_prediction_vs_actual
+            plt = plot_prediction_vs_actual(
+                features, target, ml.df,
                 show=False
             )
         
@@ -333,18 +339,22 @@ class MLTrainingWorkflow:
         predictive_features = [f for f in features if f != target]
         
         if len(predictive_features) == 1:
-            # Use existing single feature plotting
+            # Use plotting module for single feature plotting
+            from plotting.anthocyanin_plots import plot_anthocyanin_linear_regression
+            
             plot_feature = [features[0]]  # First feature
-            plt = ml.plot_linear_regression(
-                plot_feature, target,
+            plt = plot_anthocyanin_linear_regression(
+                plot_feature, target, ml.df,
                 indecator='catalog id',
                 plot_separate=True,
-                show=False
+                show=False,
+                categories=ml.config.get('categories', {}) if hasattr(ml, 'config') and ml.config else {}
             )
         else:
-            # Use new prediction vs actual plotting for multi-feature models
-            plt = ml.plot_prediction_vs_actual(
-                features, target,
+            # Use plotting module for prediction vs actual plotting
+            from plotting.base_plots import plot_prediction_vs_actual
+            plt = plot_prediction_vs_actual(
+                features, target, ml.df,
                 show=False
             )
         
@@ -362,12 +372,141 @@ class MLTrainingWorkflow:
             plt.close()
 
 
-def create_workflow(workflow_type: str, config: ConfigManager):
+class PlottingWorkflow:
+    """Workflow for generating plots from datasets."""
+    
+    def __init__(self, config: ConfigManager):
+        """
+        Initialize plotting workflow.
+        
+        Args:
+            config: Configuration manager instance
+        """
+        self.config = config
+        self.logger = get_logger(__name__)
+    
+    def generate_plots(self, args: Dict) -> None:
+        """
+        Generate plots based on specified type.
+        
+        Args:
+            args: Dictionary of command line arguments
+        """
+        plot_type = args.get('type')
+        dataset_path = args.get('dataset')
+        
+        self.logger.info(f"Generating {plot_type} plots from {dataset_path}")
+        
+        # Load dataset
+        try:
+            import pandas as pd
+            df = pd.read_csv(dataset_path)
+            self.logger.info(f"Loaded dataset with shape: {df.shape}")
+        except Exception as e:
+            self.logger.error(f"Failed to load dataset: {e}")
+            raise
+        
+        # Generate plots based on type
+        if plot_type == 'regression':
+            self._generate_regression_plots(df, args)
+        elif plot_type == 'anthocyanin':
+            self._generate_anthocyanin_plots(df, args)
+        elif plot_type == 'r2-score-of-ndi':
+            self._generate_ndi_heatmap_plots(df, args)
+        else:
+            raise ValueError(f"Unsupported plot type: {plot_type}")
+    
+    def _generate_regression_plots(self, df: pd.DataFrame, args: Dict) -> None:
+        """Generate regression plots."""
+        from plotting.base_plots import plot_prediction_vs_actual
+        
+        features = args.get('features', '').split(',')
+        target = args.get('target')
+        
+        if not features or not target:
+            raise ValueError("Both --features and --target required for regression plots")
+        
+        plt = plot_prediction_vs_actual(
+            features, target, df,
+            condition=args.get('condition'),
+            show=False
+        )
+        
+        self._save_plot(plt, "regression_plot", args)
+    
+    def _generate_anthocyanin_plots(self, df: pd.DataFrame, args: Dict) -> None:
+        """Generate anthocyanin-specific plots."""
+        from plotting.anthocyanin_plots import plot_anthocyanin_linear_regression
+        
+        features = args.get('features', '').split(',')
+        target = args.get('target')
+        
+        if not features or not target:
+            raise ValueError("Both --features and --target required for anthocyanin plots")
+        
+        # Get categories from config if available
+        categories = self.config.get('categories', {})
+        
+        plt = plot_anthocyanin_linear_regression(
+            features, target, df,
+            indicator=args.get('indicator', 'catalog id'),
+            condition=args.get('condition'),
+            plot_separate=args.get('plot_separate', False),
+            show=False,
+            categories=categories
+        )
+        
+        self._save_plot(plt, "anthocyanin_plot", args)
+    
+    def _generate_ndi_heatmap_plots(self, df: pd.DataFrame, args: Dict) -> None:
+        """Generate NDI R² score heatmap plots."""
+        from plotting.base_plots import plot_heatmap_of_r2_score_of_ndi
+        
+        # For NDI plots, we need r2_ndi_df which should be precomputed
+        # This is a placeholder - in practice, this data would need to be
+        # generated from NDI calculations
+        self.logger.warning("NDI heatmap plots require precomputed R² data")
+        
+        # Placeholder implementation
+        model = args.get('model', 'linear_regression')
+        target = args.get('target', 'anthocyanin')
+        
+        # Create dummy data for demonstration
+        import numpy as np
+        dummy_r2_df = pd.DataFrame(
+            np.random.rand(10, 10),
+            index=[f"band_{i}" for i in range(10)],
+            columns=[f"band_{i}" for i in range(10)]
+        )
+        
+        plt = plot_heatmap_of_r2_score_of_ndi(
+            dummy_r2_df, model, target, show=False
+        )
+        
+        self._save_plot(plt, "ndi_r2_heatmap", args)
+    
+    def _save_plot(self, plt, plot_name: str, args: Dict) -> None:
+        """Save plot to file and optionally display."""
+        outputs_dir = self.config.ensure_output_dir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plot_path = os.path.join(outputs_dir, f"{plot_name}_{timestamp}.png")
+        
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        self.logger.info(f"Plot saved to: {plot_path}")
+        
+        # Show plot only if requested
+        if args.get('show_plots'):
+            plt.show()
+        else:
+            plt.close()
+
+
+def get_workflow(workflow_type: str, config: ConfigManager):
     """
-    Factory function to create workflow instances.
+    Factory function to get workflow instance.
     
     Args:
-        workflow_type: Type of workflow ('create', 'merge', 'train')
+        workflow_type: Type of workflow ('create', 'merge', 'train', 'plot')
         config: Configuration manager instance
         
     Returns:
@@ -376,10 +515,23 @@ def create_workflow(workflow_type: str, config: ConfigManager):
     workflows = {
         'create': DatasetCreationWorkflow,
         'merge': DatasetMergeWorkflow,
-        'train': MLTrainingWorkflow
+        'train': _get_workflow_class(config),
+        'plot': PlottingWorkflow
     }
     
     if workflow_type not in workflows:
         raise ValueError(f"Unknown workflow type: {workflow_type}")
     
     return workflows[workflow_type](config)
+
+
+def _get_workflow_class(config: ConfigManager):
+    """Get appropriate workflow class based on project."""
+    project_name = config.get('metadata.project_name', '')
+    
+    if 'Anthocyanin' in project_name:
+        from .anthocyanin_workflow import AnthocyaninMLTrainingWorkflow as WorkflowClass
+    else:
+        WorkflowClass = MLTrainingWorkflow
+    
+    return WorkflowClass

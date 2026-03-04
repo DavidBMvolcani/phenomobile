@@ -52,6 +52,10 @@ class ConfigManager:
     
     def load_project_config(self) -> None:
         """Load project-specific configuration using absolute path."""
+        # Only load project config if specified
+        if not self.project_config:
+            return
+            
         # Fix: Use self.root_path
         project_config_path = self.root_path / 'config' / self.project_config
         
@@ -76,31 +80,26 @@ class ConfigManager:
         deep_merge(self.config, new_config)
     
     def load_environment(self) -> None:
-        """Load environment variables using absolute path."""
-        # Fix: Use self.root_path
+        """Load environment variables from .env file."""
+        if not self.env_file:
+            return
+            
         env_path = self.root_path / self.env_file
         
         if not env_path.exists():
-            raise FileNotFoundError(f"Environment file not found: {env_path}")
+            print(f"Warning: Environment file not found at {env_path}")
+            print("Continuing without environment variables - no server connection available")
+            return
         
-        load_dotenv(override=True, dotenv_path=env_path)
+        load_dotenv(env_path)
         
-        # Load only server credentials and meta config from env
-        env_vars = [
-            'FlirImageExtractor_path',
-            'SMB_USERNAME', 
-            'SMB_PASSWORD',
-            'SMB_SERVER',
-            'SMB_SHARE'
-        ]
-        
+        # Check for required environment variables
+        required_vars = ['dataset_folder', 'home_directory_name']
         missing_vars = []
-        for var in env_vars:
-            value = os.environ.get(var)
-            if value is None:
+        
+        for var in required_vars:
+            if os.environ.get(var) is None:
                 missing_vars.append(var)
-            else:
-                self.config[var] = value
         
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {missing_vars}")
@@ -110,10 +109,14 @@ class ConfigManager:
         # We use self.root_path as our anchor
         self.config['home_path'] = str(self.root_path)
         
-        dataset_folder = self.config.get('experiment_settings', {}).get('dataset_folder', 'datasets')
-        self.config['datasets_path'] = str(self.root_path / dataset_folder)
+        # Get dataset folder with proper fallback
+        experiment_settings = self.config.get('experiment_settings') or {}
+        dataset_folder = experiment_settings.get('dataset_folder', 'datasets')
+        self.config['datasets_path'] = self.root_path / dataset_folder
         
-        download_folder = self.config.get('paths', {}).get('download_folder', 'images')
+        # Get download folder with proper fallback
+        paths_config = self.config.get('paths') or {}
+        download_folder = paths_config.get('download_folder', 'images')
         self.config['download_path'] = str(self.root_path / download_folder)
         
         # Outputs and Src are also relative to root
@@ -169,7 +172,11 @@ class ConfigManager:
         Returns:
             Full path to dataset file
         """
-        return str(Path(self.config['datasets_path']) / dataset_name)
+        datasets_path = self.config['datasets_path']
+        if isinstance(datasets_path, str):
+            return str(Path(datasets_path) / dataset_name)
+        else:
+            return str(datasets_path / dataset_name)
     
     def ensure_output_dir(self) -> str:
         """Ensure output directory exists and return path."""

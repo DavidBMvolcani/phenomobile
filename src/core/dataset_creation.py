@@ -52,11 +52,9 @@ class dataset_creation:
                  create_ndi_table=False, ndi_table_directory_path=None,
                  ndi_tuple=None):
         
-        #process FLIR thermal image with exiftool
-        self.FlirImageExtractor_path=FlirImageExtractor_path
-        sys.path.append(FlirImageExtractor_path)
-        import flir_image_extractor
-        self.fir = flir_image_extractor.FlirImageExtractor()
+        # Store FLIR path but don't import yet - only import when thermal processing is needed
+        self.FlirImageExtractor_path = FlirImageExtractor_path
+        self.fir = None  # Will be initialized only when thermal processing is requested
         
         # Initialize datetime attributes (always needed, regardless of CREATE flag)
         self.date = dt.datetime.now().strftime("%Y%m%d")
@@ -253,6 +251,15 @@ class dataset_creation:
             print("SMB connection cache reset.")
 
     def create_Theraml_ds(self):
+        # Initialize FLIR image extractor only when thermal processing is needed
+        if self.fir is None:
+            try:
+                sys.path.append(self.FlirImageExtractor_path)
+                import flir_image_extractor
+                self.fir = flir_image_extractor.FlirImageExtractor()
+            except ImportError as e:
+                raise ImportError(f"Failed to import flir_image_extractor from {self.FlirImageExtractor_path}: {e}")
+        
         #locals assignments 
         cd=self.cd
         download_folder=self.download_folder

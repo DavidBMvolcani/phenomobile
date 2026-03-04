@@ -21,12 +21,16 @@ class thermal_image:
     # Constructor method, called when a new object is created
     def __init__(self,img_name,img_path,FlirImageExtractor_path):
 
-        #process FLIR thermal image with exiftool
-        sys.path.append(FlirImageExtractor_path)
-        import flir_image_extractor
-        self.img_name=img_name
-        self.fir = flir_image_extractor.FlirImageExtractor()
-        self.fir.process_image(img_path)
+        #process FLIR thermal image with exiftool - only import when needed
+        try:
+            sys.path.append(FlirImageExtractor_path)
+            import flir_image_extractor
+            self.img_name=img_name
+            self.fir = flir_image_extractor.FlirImageExtractor()
+            self.fir.process_image(img_path)
+        except ImportError as e:
+            raise ImportError(f"Failed to import flir_image_extractor from {FlirImageExtractor_path}: {e}")
+        
         self.exiftool_path="exiftool"
         self.img_path=img_path
 

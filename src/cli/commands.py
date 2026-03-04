@@ -9,7 +9,7 @@ from typing import Dict
 
 from utils.logger import get_logger, log_step
 from utils.config import ConfigManager
-from cli.workflows import create_workflow
+from cli.workflows import get_workflow
 
 
 def handle_create_command(args: Dict, config: ConfigManager) -> None:
@@ -26,7 +26,7 @@ def handle_create_command(args: Dict, config: ConfigManager) -> None:
         log_step("Starting dataset creation")
         
         # Create workflow
-        workflow = create_workflow('create', config)
+        workflow = get_workflow('create', config)
         
         # Execute dataset creation
         workflow.create_datasets(args)
@@ -62,7 +62,7 @@ def handle_merge_command(args: Dict, config: ConfigManager) -> None:
             raise FileNotFoundError(f"Reference dataset not found: {ref_dataset}")
         
         # Create workflow
-        workflow = create_workflow('merge', config)
+        workflow = get_workflow('merge', config)
         
         # Execute dataset merge
         workflow.merge_datasets(args)
@@ -94,7 +94,7 @@ def handle_train_command(args: Dict, config: ConfigManager) -> None:
             raise FileNotFoundError(f"Training dataset not found: {dataset_path}")
         
         # Create workflow
-        workflow = create_workflow('train', config)
+        workflow = get_workflow('train', config)
         
         # Execute ML training
         results = workflow.train_models(args)
@@ -120,11 +120,38 @@ def handle_help_command(args: Dict, config: ConfigManager) -> None:
     print_help()
 
 
+def handle_plot_command(args: Dict, config: ConfigManager) -> None:
+    """
+    Handle plot generation command.
+    
+    Args:
+        args: Parsed command line arguments
+        config: Configuration manager instance
+    """
+    logger = get_logger('plot_command')
+    
+    try:
+        log_step("Starting plot generation")
+        
+        # Create workflow
+        workflow = get_workflow('plot', config)
+        
+        # Generate plots
+        workflow.generate_plots(args)
+        
+        log_step("Plot generation completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Plot generation failed: {e}")
+        sys.exit(1)
+
+
 # Command registry
 COMMAND_HANDLERS = {
     'create': handle_create_command,
     'merge': handle_merge_command,
     'train': handle_train_command,
+    'plot': handle_plot_command,
     'help': handle_help_command
 }
 

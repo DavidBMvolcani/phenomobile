@@ -40,7 +40,7 @@ import statsmodels.api as sm
 
 
 
-class training(ABC):
+class training():
 
     # PARAMETERS:
     #    - dataset_name: name of the dataset that will be used for training
@@ -51,7 +51,14 @@ class training(ABC):
     #    - model: you can set the model you want to fit to data from
     #      options below. if no option will be set - all models will be chosen.
     #      options are ['linear regression']
-    def __init__(self, dataset_name, config=None, fix_method='KEEP ROWS', task='regression', model=None):
+    def __init__(self, 
+        dataset_name, 
+        config=None, 
+        fix_method='KEEP ROWS', 
+        task='regression', 
+        model=None,
+        logger=None
+        ):
         """
         Initialize training class with dataset and configuration.
         
@@ -65,7 +72,9 @@ class training(ABC):
         # Use ConfigManager for all path resolution
         if config is None:
             raise ValueError("config parameter is required")
-            
+        
+        self.logger = logger
+        
         self.config = config
         self.home_path = config.config.get('home_path')
         self.datasets_paths = config.config.get('datasets_path')
@@ -246,9 +255,23 @@ class training(ABC):
     
      # PARAMETERS:
      #    - split: boolean parameter that set wheather to split the dataset to train and test groups
-    def model_evaluation(self,X, y,target,results_df,pretty_names_map,reg_models,split=True):
+    def model_evaluation(self,
+        X, 
+        y, 
+        target, 
+        results_df, 
+        pretty_names_map, 
+        reg_models, 
+        split=False,
+        test_size=0.2):
+
+        self.logger.info(f"Split dataset to train and test: {split}")
+        if split:
+            self.logger.info(f"Test size: {test_size}")
+        else:
+            self.logger.info("No split to train and test")
         #  Split Data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
         
         # iterate all over the models and predict the metric results
         for reg_model in reg_models:
@@ -257,11 +280,13 @@ class training(ABC):
             results_df.loc[idx,'predictable_features']=str(list(X.columns))
             model_name=pretty_names_map[str(type(reg_model))]
             results_df.loc[idx,'model_name']= model_name
-    
+
             if(split):
+                self.logger.info(f"Fitting model {model_name} with split data. test size: {test_size}")
                 reg_model.fit(X_train,y_train)
                 y_pred = reg_model.predict(X_test)
             else:
+                self.logger.info(f"Fitting model {model_name} without split data")
                 reg_model.fit(X,y)
                 y_pred = reg_model.predict(X)
                 y_test=y
@@ -294,46 +319,35 @@ class training(ABC):
 
 
     # GOAL: filter the df by a mask or condition
-    #       This is an abstract method that should be implemented by subclasses
-    #       based on their specific dataset requirements.
-    @abstractmethod
-    def filter_df_by_category(self, df, condition, indicator):
-        """
-        Abstract method to filter dataframe by category.
-        
-        This method should be implemented by subclasses to provide
-        project-specific filtering logic.
-        
-        PARAMETERS:
-        - df: dataframe to filter
-        - condition: filtering condition (project-specific)
-        - indicator: column name to filter on
-        
-        RETURNS:
-        - Filtered dataframe
-        """
-        pass
+    def filter_df_by_category(self, df, filter_cond,df_column_for_filtering):
+        df = df[df[df_column_for_filtering] == filter_cond]
+        return df
+    
     
     # PARAMETERS:
     #  - trainable_features: list of trainable_features. our convention is the target
     #    variable is the last variable in this list
     #  - target: the traget variable for prediction
-    #  - fitler_df: flag parameter indicate that we filter the dataframe by mask
+    #  - filter_df: flag parameter indicate that we filter the dataframe by mask
     #  - filter_cond: if filter_df is True then we use this condition for filter the df.
-    #  - filter_indicator: we use this for filter the df.
-    def evaluate_regression_models(self,trainable_features,target,
-                                   filter_df=None,filter_cond=None,filter_indicator=None):
-        if filter_df and filter_cond and filter_indicator:
+    #  - df_column_for_filtering: we use this for filter the df.
+    def evaluate_regression_models(self,
+        trainable_features,
+        target,
+        filter_df=None,
+        filter_cond=None,
+        df_column_for_filtering=None,
+        split=False,
+        test_size=0.2):
+        if filter_df and filter_cond and df_column_for_filtering:
             df=self.df.copy()
-            df=self.filter_df_by_category(df,filter_cond,filter_indicator)
+            df=self.filter_df_by_category(df,filter_cond,df_column_for_filtering)
         else:
             df=self.df
         X,y=self.split_dataset_to_X_and_y(trainable_features,target,df)
         results_df=pd.DataFrame()
         results_df=self.model_evaluation(X, y,target,results_df,self.pretty_names_map,
-                              self.reg_models,split=False)
-        if filter_df and filter_cond:
-            results_df[filter_indicator]=filter_cond
+                              self.reg_models,split=split,test_size=test_size)
         return results_df
     
 

@@ -10,6 +10,7 @@ from typing import Dict
 from utils.logger import get_logger, log_step
 from utils.config import ConfigManager
 from cli.workflows import get_workflow
+from cli.workflows import DatasetCreationWorkflow
 
 
 def handle_create_command(args: Dict, config: ConfigManager) -> None:
@@ -52,11 +53,11 @@ def handle_merge_command(args: Dict, config: ConfigManager) -> None:
         log_step("Starting dataset merge")
         
         # Validate dataset paths
-        hp_dataset = config.get_dataset_path(args.get('hp_dataset'))
+        params_dataset = config.get_dataset_path(args.get('params_dataset'))
         ref_dataset = config.get_dataset_path(args.get('ref_dataset'))
         
-        if not os.path.exists(hp_dataset):
-            raise FileNotFoundError(f"Hyperparameter dataset not found: {hp_dataset}")
+        if not os.path.exists(params_dataset):
+            raise FileNotFoundError(f"parameters dataset not found: {params_dataset}")
         
         if not os.path.exists(ref_dataset):
             raise FileNotFoundError(f"Reference dataset not found: {ref_dataset}")

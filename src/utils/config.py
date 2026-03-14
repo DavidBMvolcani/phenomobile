@@ -24,7 +24,7 @@ class ConfigManager:
         """
 
         # 1. CALCULATE PROJECT ROOT
-        # This points to the 'phenomobile' directory regardless of where you run the script
+        # This points to the 'phenomobile' directory 
         # __file__ is src/utils/config.py -> .parent is src/utils -> .parent is src -> .parent is root
         self.root_path = Path(__file__).resolve().parent.parent.parent
 
@@ -46,6 +46,9 @@ class ConfigManager:
         
         with open(main_config_path, 'r') as f:
             main_config = json.load(f)
+            data_src=main_config['data_source']
+            self.config['data_source'] = data_src['type'] #server or local
+            
         
         # Merge main config
         self._merge_config(main_config)
@@ -173,10 +176,9 @@ class ConfigManager:
             Full path to dataset file
         """
         datasets_path = self.config['datasets_path']
-        if isinstance(datasets_path, str):
-            return str(Path(datasets_path) / dataset_name)
-        else:
-            return str(datasets_path / dataset_name)
+        # This joins them first, THEN resolves the whole thing to an absolute path
+        full_path = Path(datasets_path, dataset_name).resolve()
+        return str(full_path)
     
     def ensure_output_dir(self) -> str:
         """Ensure output directory exists and return path."""

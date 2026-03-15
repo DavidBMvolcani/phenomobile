@@ -92,7 +92,13 @@ def get_logger(name: str = 'phenomobile') -> logging.Logger:
     Returns:
         Logger instance
     """
-    return logging.getLogger(name)
+    logger = logging.getLogger(name)
+    
+    # If logger has no handlers, set it up with default configuration
+    if not logger.handlers:
+        return setup_logger(name)
+    
+    return logger
 
 
 def log_execution_time(func):

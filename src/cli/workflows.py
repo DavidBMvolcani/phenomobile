@@ -6,17 +6,24 @@ High-level workflows that wrap existing classes with CLI-friendly interfaces.
 import os
 import sys
 import pandas as pd
+import numpy as np
+
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 # Import existing modules
-from core.dataset_creation import dataset_creation
-from datasets.lettuce_dataset import lettuce_dataset
 from ml.training import training as TrainingClass
 
 # Import utilities
-from utils.logger import get_logger, log_execution_time, log_step, log_data_info
+from utils.logger import get_logger, setup_logger, log_execution_time, log_step, log_data_info
 from utils.config import ConfigManager
+
+#import my core modules
+from core.datasets_creation.hyper_spectral_ds_creation import HyperSpectralDsCreation
+from core.datasets_creation.thermal_ds_creation import ThermalDsCreation
+from core.datasets_creation.rgb_ds_creation import RgbDsCreation
+
+from abc import ABC, abstractmethod
 
 
 class DatasetCreationWorkflow:
@@ -43,95 +50,195 @@ class DatasetCreationWorkflow:
         """
         log_step("Initializing dataset creation")
         
+        # Validate thermal processing requirements
+        if args.get('th', False):
+            self._validate_thermal_requirements()
+        
         # Extract NDI tuple if provided
         ndi_tuple = args.get('ndi_tuple')
         
-        # Initialize dataset creation
-        ds_creation = dataset_creation(
-            FlirImageExtractor_path=self.flir_path,
-            config=self.config,
-            ENV_FILE=False,  # Use ConfigManager instead
-            CREATE=True,
-            HS=args.get('hs', False),
-            TH=args.get('th', False),
-            RGB=args.get('rgb', False),
-            create_ndi_table=args.get('create_ndi_table', False),
-            ndi_tuple=ndi_tuple
-        )
+        # Get config and experiment settings
+        experiment_settings = self.config.get('experiment_settings', {})
+        SPLIT = experiment_settings.get('SPLIT_IMAGE_TO_OBJECTS')
+        ANNOTATION_FILE_NAME = experiment_settings.get('ANNOTATION_FILE')
+        home_dir = self.config.get('home_path')
+        paths = self.config.get('paths', {})
+        download_folder = paths.get('download_folder')
+        dataset_folder = self.config.get('datasets_path')
+        self.dataset_folder = dataset_folder
+        formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        arg_create_ndi_table = args.get('create_ndi_table')
+        FlirImageExtractor_path = self.config.get('FlirImageExtractor_path')
+
+        # Get data source
+        self.data_source = self.config.get('data_source')
+        if self.data_source == 'server':
+            if not self.config.get('env_file'):
+                raise ValueError("ENV_FILE must be True when data_source is 'server'")
+            self.logger.info("Loading environment variables from .env file")
+            self.setup_paths_from_env_file()
+        else:
+            self.logger.info("Using local data source")
+            self.setup_paths_from_config()
+            self.RAW_DATA_FOLDER = self.config.get('download_folder')
+
+        # Get dataset creation flags
+        hs = args.get('hs', False)
+        th = args.get('th', False)
+        rgb = args.get('rgb', False)
+
+        map_hs_and_th_ds= True if hs and th else False
+
+        # create datasets by user choice
+        if hs:
+            # Create HS dataset
+            hs_ds=HyperSpectralDsCreation(
+                logger=self.logger,
+                map_hs_and_th_ds=map_hs_and_th_ds,
+                annotation_file_name=ANNOTATION_FILE_NAME,
+                split=SPLIT,
+                home_dir=home_dir,
+                download_folder=download_folder,
+                formatted_datetime=formatted_datetime,
+                data_source=self.data_source,
+                ndi_tuple=ndi_tuple,
+                COMPUTE_NDI=arg_create_ndi_table,
+                SMB_USERNAME=self.SMB_USERNAME,
+                SMB_PASSWORD=self.SMB_PASSWORD,
+                SMB_SERVER=self.SMB_SERVER,
+                SMB_SHARE=self.SMB_SHARE,
+                RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
+                YEAR_DIR_NAME=self.server_year_dir_name,
+                DATE_DIR_NAME=self.server_date_dir_name
+            )
+            self.spectral_img_df, self.gray_for_HS_imgs = hs_ds.create_dataset()
+        if th:
+            self.logger.info("Creating TH dataset")
+            th_ds = ThermalDsCreation(
+                logger=self.logger,
+                map_hs_and_th_ds=map_hs_and_th_ds,
+                home_dir=home_dir,
+                download_folder=download_folder,
+                formatted_datetime=formatted_datetime,
+                data_source=self.data_source,
+                FlirImageExtractor_path=FlirImageExtractor_path,
+                SMB_USERNAME=self.SMB_USERNAME,
+                SMB_PASSWORD=self.SMB_PASSWORD,
+                SMB_SERVER=self.SMB_SERVER,
+                SMB_SHARE=self.SMB_SHARE,
+                RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
+                YEAR_DIR_NAME=self.server_year_dir_name,
+                DATE_DIR_NAME=self.server_date_dir_name
+            )
+            self.thermal_img_df, self.gray_for_TH_imgs = th_ds.create_dataset()
+        if rgb:
+            self.logger.info("Creating RGB dataset")
+            rgb_ds = RgbDsCreation(
+                logger=self.logger,
+                home_dir=home_dir,
+                download_folder=download_folder,
+                formatted_datetime=formatted_datetime,
+                data_source=self.data_source,
+                annotation_file_name=ANNOTATION_FILE_NAME,
+                dataset_folder=self.dataset_folder,
+                SMB_USERNAME=self.SMB_USERNAME,
+                SMB_PASSWORD=self.SMB_PASSWORD,
+                SMB_SERVER=self.SMB_SERVER,
+                SMB_SHARE=self.SMB_SHARE,
+                RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
+                server_year_dir_name=self.server_year_dir_name,
+                server_date_dir_name=self.server_date_dir_name,
+                config=self.config
+            )
+            self.rgb_img_df = rgb_ds.create_dataset()
+
+        if map_hs_and_th_ds:
+            self.logger.info("Mapping hyperspectral and thermal datasets")
+            merge_ds = MergeParameterDs(
+                logger=self.logger,
+                dataset_folder=self.dataset_folder,
+                RAW_DATA_FOLDER=self.RAW_DATA_FOLDER
+            )
+            merge_ds.map_hyper_spectral_and_thermal_datasets(
+                gray_for_HS_imgs=self.gray_for_HS_imgs,
+                gray_for_Th_imgs=self.gray_for_TH_imgs,
+                gray_for_HS_imgs_directory_path=self.gray_for_HS_imgs_directory_path,
+                gray_for_Th_imgs_directory_path=self.gray_for_TH_imgs_directory_path,
+                spectral_img_df=self.spectral_img_df,
+                thermal_df=self.thermal_img_df,
+            )
         
         self.logger.info("Dataset creation completed successfully")
         
         # Log created datasets
-        if hasattr(ds_creation, 'spectral_img_df') and not ds_creation.spectral_img_df.empty:
-            log_data_info(ds_creation.spectral_img_df, "Hyperspectral dataset")
+        if 'hs_ds' in locals() and hasattr(hs_ds, 'spectral_img_df') and not hs_ds.spectral_img_df.empty:
+            log_data_info(hs_ds.spectral_img_df, "Hyperspectral dataset")
         
-        if hasattr(ds_creation, 'thermal_df') and not ds_creation.thermal_df.empty:
-            log_data_info(ds_creation.thermal_df, "Thermal dataset")
+        if 'th_ds' in locals() and hasattr(th_ds, 'thermal_df') and not th_ds.thermal_df.empty:
+            log_data_info(th_ds.thermal_df, "Thermal dataset")
             
-        if hasattr(ds_creation, 'merged_img_df') and not ds_creation.merged_img_df.empty:
-            log_data_info(ds_creation.merged_img_df, "Merged dataset")
+        if 'rgb_ds' in locals() and hasattr(rgb_ds, 'rgb_img_df') and not rgb_ds.rgb_img_df.empty:
+            log_data_info(rgb_ds.rgb_img_df, "RGB dataset")
+
+    def setup_paths_from_env_file(self):
+        # Fallback to environment variables (legacy support)
+        load_dotenv(override=True, dotenv_path='.env')
+        self.SMB_USERNAME = os.environ.get("SMB_USERNAME")
+        self.SMB_PASSWORD = os.environ.get("SMB_PASSWORD")
+        self.SMB_SERVER = os.environ.get("SMB_SERVER")
+        self.SMB_SHARE = os.environ.get("SMB_SHARE")
+        
+        self.RAW_DATA_FOLDER = os.environ.get("REMOTE_FOLDER")
+        self.server_year_dir_name = os.environ.get("year")
+        self.server_date_dir_name = os.environ.get("date")  
+    
+    def setup_paths_from_config(self):
+        self.RAW_DATA_FOLDER = self.config.get('download_folder')
+
+        self.SMB_USERNAME = None
+        self.SMB_PASSWORD = None
+        self.SMB_SERVER = None
+        self.SMB_SHARE = None
+        self.server_year_dir_name = None
+        self.server_date_dir_name = None  
+          
+
+    def _validate_thermal_requirements(self) -> None:
+        """Validate that thermal processing requirements are met."""
+        try:
+            # Test if FLIR path is accessible
+            import sys
+            if self.flir_path not in sys.path:
+                sys.path.append(self.flir_path)
+            
+            # Try to import the module
+            import flir_image_extractor
+            
+            # Try to create an instance (basic validation)
+            test_extractor = flir_image_extractor.FlirImageExtractor()
+            
+            self.logger.info("FLIR image extractor validation passed")
+            
+        except ImportError as e:
+            error_msg = f"Thermal processing requested but FLIR image extractor is not available: {e}"
+            self.logger.error(error_msg)
+            raise ImportError(error_msg)
+        except Exception as e:
+            error_msg = f"FLIR image extractor validation failed: {e}"
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
 
-class DatasetMergeWorkflow:
+# Abstract class 
+class DatasetMergeWorkflow(ABC):
     """Workflow for merging hyperparameter and reference datasets."""
     
     def __init__(self, config: ConfigManager):
-        """
-        Initialize dataset merge workflow.
-        
-        Args:
-            config: Configuration manager instance
-        """
-        self.config = config
-        self.logger = get_logger('dataset_merge')
-        self.flir_path = config.get_flir_path()
+        pass
     
-    @log_execution_time
+    @abstractmethod
     def merge_datasets(self, args: Dict) -> None:
-        """
-        Merge datasets based on command line arguments.
-        
-        Args:
-            args: Parsed command line arguments
-        """
-        log_step("Initializing dataset merge")
-        
-        # Get dataset paths
-        hp_dataset_path = self.config.get_dataset_path(args.get('hp_dataset'))
-        ref_dataset_path = self.config.get_dataset_path(args.get('ref_dataset'))
-        project_name = args.get('project')
-        
-        
-       # Get config path (always resolve to full path)
-        config_name = args.get('config')
-        config_path = self.config.get_config_path(config_name)
-        
-        self.logger.info(f"Merging datasets for project: {project_name}")
-        self.logger.info(f"Hyperparameter dataset: {hp_dataset_path}")
-        self.logger.info(f"Reference dataset: {ref_dataset_path}")
-        self.logger.info(f"Configuration: {config_path}")
-        
-        # Initialize dataset creation for merging
-        ds_creation = dataset_creation(
-            FlirImageExtractor_path=self.flir_path,
-            config=self.config,
-            ENV_FILE=False,  # Use ConfigManager instead
-            CREATE=False
-        )
-        
-        # Perform merge
-        ds_creation.merge_datasets(
-            hp_dataset_path,
-            ref_dataset_path,
-            project_name=project_name,
-            config_file_path=config_path
-        )
-        
-        # Log results
-        if hasattr(ds_creation, 'completed_df'):
-            log_data_info(ds_creation.completed_df, "Merged dataset")
-        
-        self.logger.info("Dataset merge completed successfully")
+        pass
 
 
 class MLTrainingWorkflow:
@@ -145,7 +252,7 @@ class MLTrainingWorkflow:
             config: Configuration manager instance
         """
         self.config = config
-        self.logger = get_logger('ml_training')
+        self.logger = setup_logger('ml_training', level='INFO')  # Explicitly set INFO level
     
     @log_execution_time
     def train_models(self, args: Dict) -> None:
@@ -170,9 +277,10 @@ class MLTrainingWorkflow:
         self.logger.info(f"Target: {target}")
         
         # Initialize training
+        from ml.training import training as TrainingClass
         ml = TrainingClass(
-            ENV_FILE=False,
             dataset_name=dataset_path,
+            config=self.config,
             task=task,
             model=model
         )
@@ -198,60 +306,16 @@ class MLTrainingWorkflow:
         csv_path = os.path.join(outputs_dir, f"model_results_{timestamp}.csv")
         results_df.to_csv(csv_path, index=False)
         self.logger.info(f"Results saved to: {csv_path}")
-        
-        # Display results
-        print("\n=== MODEL EVALUATION RESULTS ===")
-        print(results_df.to_string(index=False))
-        
-        # Generate plots for regression tasks
-        if task == 'regression':
-            if args.get('plot_separate'):
-                self._generate_plots(ml, features, target, args)
-            else:
-                self._generate_single_plot(ml, features, target, args)
-        
+          
         return results_df
+    
+    def train_models_without_plotting(self, args: Dict) -> None:
+        """Train models without plotting (for inheritance)."""
+        return self.train_models(args)
     
     def _handle_regression_task(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> pd.DataFrame:
         """Handle regression task evaluation."""
         results_df = ml.evaluate_regression_models(features, target)
-        
-        # Apply filtering if specified (only for Anthocyanin projects)
-        if args.get('filter') == 'light':
-            # Get project name from config
-            project_name = self.config.get('metadata', {}).get('project_name', '')
-            
-            if project_name == 'Anthocyanin_BENI_ATAROT':
-                self.logger.info("Detected Anthocyanin project, applying light filtering")
-                
-                # Get filter indicator from config
-                filter_indicator = self.config.get('parameters', {}).get('indicator', 'catalog id')
-                
-                # Get categories from config and map to light conditions
-                categories = self.config.get('categories', {})
-                
-                light_conditions = [
-                    ('White and Blue Led', categories.get('RED_white_blue_led_ids', []) + categories.get('GREEN_white_blue_led_ids', [])),
-                    ('White Led', categories.get('RED_white_led_ids', []) + categories.get('GREEN_white_led_ids', [])),
-                    ('Shade', categories.get('RED_Shade_ids', []) + categories.get('GREEN_Shade_ids', [])),
-                    ('Control', categories.get('RED_Control_ids', []) + categories.get('GREEN_Control_ids', []))
-                ]
-                
-                for condition_name, ids in light_conditions:
-                    if ids:  # Only process if there are IDs for this condition
-                        self.logger.info(f"Evaluating for light condition: {condition_name}")
-                        filtered_results = ml.evaluate_regression_models(
-                            features, target,
-                            filter_df=True,
-                            filter_cond=condition_name,
-                            filter_indicator=filter_indicator
-                        )
-                        filtered_results[filter_indicator] = condition_name
-                        results_df = pd.concat([results_df, filtered_results], ignore_index=True)
-            else:
-                self.logger.warning(f"Light filtering specified but project '{project_name}' is not supported for light filtering")
-                self.logger.info("Skipping light filtering")
-        
         return results_df
     
     def _handle_classification_task(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> pd.DataFrame:
@@ -290,32 +354,65 @@ class MLTrainingWorkflow:
         
         return pd.DataFrame(results_data)
     
-    def _generate_single_plot(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> None:
-        """Generate a single regression plot."""
-        self.logger.info("Generating regression plot")
+ 
+class PlottingWorkflow:
+    """Workflow for generating plots from datasets."""
+    
+    def __init__(self, config: ConfigManager):
+        """
+        Initialize plotting workflow.
         
-        # Check number of predictive features (excluding target)
-        predictive_features = [f for f in features if f != target]
+        Args:
+            config: Configuration manager instance
+        """
+        self.config = config
+        self.logger = get_logger(__name__)
+    
+    def generate_plots(self, args: Dict) -> None:
+        """
+        Generate plots based on specified type.
         
-        if len(predictive_features) == 1:
-            # Use existing single feature plotting
-            plot_feature = [features[0]]  # First feature
-            plt = ml.plot_linear_regression(
-                plot_feature, target,
-                indecator='catalog id',
-                show=False
-            )
-        else:
-            # Use new prediction vs actual plotting for multi-feature models
-            plt = ml.plot_prediction_vs_actual(
-                features, target,
-                show=False
-            )
+        Args:
+            args: Dictionary of command line arguments
+        """
+        plot_type = args.get('type')
+        dataset_path = args.get('dataset')
         
-        # Save plot
+        self.logger.info(f"Generating {plot_type} plots from {dataset_path}")
+        
+        # Load dataset
+        try:
+            df = pd.read_csv(dataset_path)
+            self.logger.info(f"Loaded dataset with shape: {df.shape}")
+        except Exception as e:
+            self.logger.error(f"Failed to load dataset: {e}")
+            raise
+       
+    def _generate_regression_plots(self, df: pd.DataFrame, args: Dict) -> None:
+        """Generate regression plots."""
+        from plotting.base_plots import plot_prediction_vs_actual
+        
+        features = args.get('features', '').split(',')
+        target = args.get('target')
+        
+        if not features or not target:
+            raise ValueError("Both --features and --target required for regression plots")
+        
+        plt = plot_prediction_vs_actual(
+            features, target, df,
+            condition=args.get('condition'),
+            show=False
+        )
+        
+        self._save_plot(plt, "regression_plot", args)
+    
+    
+    def _save_plot(self, plt, plot_name: str, args: Dict) -> None:
+        """Save plot to file and optionally display."""
         outputs_dir = self.config.ensure_output_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(outputs_dir, f"regression_plot_{timestamp}.png")
+        plot_path = os.path.join(outputs_dir, f"{plot_name}_{timestamp}.png")
+        
         plt.savefig(plot_path, dpi=300, bbox_inches='tight')
         self.logger.info(f"Plot saved to: {plot_path}")
         
@@ -324,50 +421,15 @@ class MLTrainingWorkflow:
             plt.show()
         else:
             plt.close()
-    
-    def _generate_plots(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> None:
-        """Generate separate plots for each condition."""
-        self.logger.info("Generating separate plots by condition")
-        
-        # Check number of predictive features (excluding target)
-        predictive_features = [f for f in features if f != target]
-        
-        if len(predictive_features) == 1:
-            # Use existing single feature plotting
-            plot_feature = [features[0]]  # First feature
-            plt = ml.plot_linear_regression(
-                plot_feature, target,
-                indecator='catalog id',
-                plot_separate=True,
-                show=False
-            )
-        else:
-            # Use new prediction vs actual plotting for multi-feature models
-            plt = ml.plot_prediction_vs_actual(
-                features, target,
-                show=False
-            )
-        
-        # Save plot
-        outputs_dir = self.config.ensure_output_dir()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(outputs_dir, f"regression_plots_separate_{timestamp}.png")
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        self.logger.info(f"Separate plots saved to: {plot_path}")
-        
-        # Show plot only if requested
-        if args.get('show_plots'):
-            plt.show()
-        else:
-            plt.close()
 
 
-def create_workflow(workflow_type: str, config: ConfigManager):
+
+def get_workflow(workflow_type: str, config: ConfigManager):
     """
-    Factory function to create workflow instances.
+    Factory function to get workflow instance.
     
     Args:
-        workflow_type: Type of workflow ('create', 'merge', 'train')
+        workflow_type: Type of workflow ('create', 'merge', 'train', 'plot')
         config: Configuration manager instance
         
     Returns:
@@ -375,11 +437,38 @@ def create_workflow(workflow_type: str, config: ConfigManager):
     """
     workflows = {
         'create': DatasetCreationWorkflow,
-        'merge': DatasetMergeWorkflow,
-        'train': MLTrainingWorkflow
+        'merge': _get_workflow_class('merge', config),
+        'train': _get_workflow_class('train', config),
+        'plot': _get_workflow_class('plot', config)
     }
     
     if workflow_type not in workflows:
         raise ValueError(f"Unknown workflow type: {workflow_type}")
     
     return workflows[workflow_type](config)
+
+
+def _get_workflow_class(workflow_type: str,config: ConfigManager):
+    """Get appropriate workflow class based on project."""
+    metadata = config.get('metadata', {})
+    project_name = metadata.get('project_name', '')
+    
+    if workflow_type == 'train':
+        if 'Anthocyanin' in project_name:
+            from .anthocyanin_workflow import AnthocyaninMLTrainingWorkflow as WorkflowClass
+        else:
+            WorkflowClass = MLTrainingWorkflow
+        
+    if workflow_type == 'merge':
+        if 'Anthocyanin' in project_name:
+            from .anthocyanin_workflow import AnthocyaninDatasetMergeWorkflow as WorkflowClass
+        else:
+             raise NotImplementedError("Merge workflow not implemented for this project type")
+        
+    if workflow_type == 'plot':
+        if 'Anthocyanin' in project_name:
+            from .anthocyanin_workflow import AnthocyaninPlottingWorkflow as WorkflowClass
+        else:
+            WorkflowClass = PlottingWorkflow
+    
+    return WorkflowClass

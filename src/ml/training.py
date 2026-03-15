@@ -3,23 +3,20 @@ import itertools
 import pprint
 import pandas as pd
 from datetime import datetime
-import matplotlib.pyplot as plt
-import seaborn as sns
-from mpl_toolkits.mplot3d import Axes3D
 from collections import OrderedDict
 from heapq import nlargest
-import statsmodels.api as sm
 import math
 import os
 from dotenv import load_dotenv
+from abc import ABC, abstractmethod
 
 from sklearn import datasets
 from sklearn.model_selection import train_test_split,KFold, cross_val_score
 from sklearn.linear_model import LinearRegression,LogisticRegression
 from sklearn.ensemble import RandomForestRegressor , RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix,ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.metrics import mean_squared_error, mean_absolute_error,root_mean_squared_error
-from sklearn.tree import plot_tree, DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.metrics import r2_score
 from sklearn.model_selection import GridSearchCV,RandomizedSearchCV
@@ -28,97 +25,81 @@ from sklearn.feature_selection import SequentialFeatureSelector
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.tree import plot_tree
+
 from sklearn.preprocessing import StandardScaler,LabelEncoder
 from sklearn.linear_model import Ridge
 
 from sklearn.ensemble import RandomForestClassifier
 
-from sklearn.metrics import RocCurveDisplay
-
 from xgboost import XGBRegressor,XGBClassifier
 
 import pdb
-import colorsys
-import webcolors
 
 from scipy import stats
 import statsmodels.api as sm
 
 
 
-class training:
+class training():
 
     # PARAMETERS:
-    # - ENV_FILE: boolean parameter indicate whether the parameters
-    #     will be taken from enviroment file.
-    #    - dataset_name: the name of the dataset that will be used for training
-    #    - fix_method: the method that will be chosse when dataset have null values 
-    #    - tasks: string from one of this :['regression' ,'classifiction'] 
-    #      the defualt value is 'regression'
-    #    - model : you can set the model you want to fit to the data from
-    #      the options below. if no option will be set - all the models be chossen.
-    #      the options are ['linear regression']
-    def __init__(self,ENV_FILE=True,dataset_name=None,
-                 fix_method='KEEP ROWS',task='regression',model=None ):
-                        
-        if ENV_FILE :
-            # Load environment variables from hidden .env file
-            current_datetime = datetime.now()
-            formatted_datetime = current_datetime.strftime("%Y-%m-%d %H")
-            cd=os.getcwd()
-            
-            # Load environment variables from hidden .env file
-            dataset_folder=os.environ.get("dataset_folder")
-            if dataset_name is None:
-                dataset_name=os.environ.get("dataset_name")
-            home_directory_name=os.environ.get("home_directory_name")
-
-            #find the path to the home directory
-            splited_path=cd.split("/")
-            hd_idx=splited_path.index(home_directory_name)
-            separator = "/"
-            home_path=separator.join(splited_path[:hd_idx+1])
-            self.home_path= home_path
-            
-            #set the directory path to the output_dataset (csv files)
-            datasets_paths=f"{home_path}/{dataset_folder}"
-            dataset=f'{datasets_paths}/{dataset_name}'
-
-            self.datasets_paths=datasets_paths
-
-            self.df=pd.read_csv(dataset)
-            self.original_df=self.df.copy()
-
-            # fixed_df : if there are null values in the dataframe 
-            # a predefined method will be apply to fix it
-            if self.does_df_has_null_values(self.df):
-                self.remove_null_from_df(fix_method)
-
-        # Use provided dataset_name as direct path
-        else:
-            if dataset_name is None:
-                raise ValueError("dataset_name must be provided when ENV_FILE=False")
-            
-            self.df = pd.read_csv(dataset_name)
-            self.original_df = self.df.copy()
-            
-            # fixed_df : if there are null values in the dataframe 
-            # a predefined method will be apply to fix it
-            if self.does_df_has_null_values(self.df):
-                self.remove_null_from_df(fix_method)
-
-        # Set up models based on task (common to both ENV_FILE paths)
-        if task=='regression':
-            #set regression models
+    #    - dataset_name: name of the dataset that will be used for training
+    #    - config: ConfigManager instance for path resolution and configuration
+    #    - fix_method: method that will be chosen when dataset has null values 
+    #    - task: string from one of this: ['regression', 'classification'] 
+    #      default value is 'regression'
+    #    - model: you can set the model you want to fit to data from
+    #      options below. if no option will be set - all models will be chosen.
+    #      options are ['linear regression']
+    def __init__(self, 
+        dataset_name, 
+        config=None, 
+        fix_method='KEEP ROWS', 
+        task='regression', 
+        model=None,
+        logger=None
+        ):
+        """
+        Initialize training class with dataset and configuration.
+        
+        Args:
+            dataset_name: Name of the dataset to use for training
+            config: ConfigManager instance for path resolution and configuration
+            fix_method: Method to handle null values in dataset (default: 'KEEP ROWS')
+            task: Task type - 'regression' or 'classification' (default: 'regression')
+            model: Specific model to use (default: all models)
+        """
+        # Use ConfigManager for all path resolution
+        if config is None:
+            raise ValueError("config parameter is required")
+        
+        self.logger = logger
+        
+        self.config = config
+        self.home_path = config.config.get('home_path')
+        self.datasets_paths = config.config.get('datasets_path')
+       
+        # Load dataset using ConfigManager path resolution
+        dataset_path = config.get_dataset_path(dataset_name)
+        self.df = pd.read_csv(dataset_path)
+        self.original_df = self.df.copy()
+        
+        # Handle null values
+        if self.does_df_has_null_values(self.df):
+            self.remove_null_from_df(fix_method)
+        
+        # Set up models based on task
+        if task == 'regression':
+            # set regression models
             self.set_regression_models(model)
-        elif task=='classifiction':
-            # set suported classifiction models
-            self.set_calssification_model()
+        elif task == 'classification':
+            # set supported classification models
+            self.set_classification_model()
 
     #####
     #
     # PREPROCESSING
+    #
     #
     ####
 
@@ -199,10 +180,8 @@ class training:
         print(f"Accuracy: {acc}")
         print("\nClassification Report:\n", cr)
         if show_cofusion_matrix:
-            disp = ConfusionMatrixDisplay(confusion_matrix=cm) 
-            disp.plot()
-            plt.title("Confusion Matrix")
-            plt.show()
+            print("\nConfusion Matrix:\n", cm)
+            # Note: For visual confusion matrix, use plotting.plot_confusion_matrix(cm)
   
         
     def classification(self,classifier_name,target,trainable_features):
@@ -276,9 +255,23 @@ class training:
     
      # PARAMETERS:
      #    - split: boolean parameter that set wheather to split the dataset to train and test groups
-    def model_evaluation(self,X, y,target,results_df,pretty_names_map,reg_models,split=True):
+    def model_evaluation(self,
+        X, 
+        y, 
+        target, 
+        results_df, 
+        pretty_names_map, 
+        reg_models, 
+        split=False,
+        test_size=0.2):
+
+        self.logger.info(f"Split dataset to train and test: {split}")
+        if split:
+            self.logger.info(f"Test size: {test_size}")
+        else:
+            self.logger.info("No split to train and test")
         #  Split Data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
         
         # iterate all over the models and predict the metric results
         for reg_model in reg_models:
@@ -287,11 +280,13 @@ class training:
             results_df.loc[idx,'predictable_features']=str(list(X.columns))
             model_name=pretty_names_map[str(type(reg_model))]
             results_df.loc[idx,'model_name']= model_name
-    
+
             if(split):
+                self.logger.info(f"Fitting model {model_name} with split data. test size: {test_size}")
                 reg_model.fit(X_train,y_train)
                 y_pred = reg_model.predict(X_test)
             else:
+                self.logger.info(f"Fitting model {model_name} without split data")
                 reg_model.fit(X,y)
                 y_pred = reg_model.predict(X)
                 y_test=y
@@ -323,82 +318,36 @@ class training:
         return X,y
 
 
-    def plot_prediction_vs_actual(self, features, target, 
-                                 condition=None, show=True):
-        """Plot predicted vs actual values with metrics for multi-feature models."""
-        # Get X, y data
-        X, y = self.split_dataset_to_X_and_y(features, target, self.df)
-        
-        # Train model and predict
-        lr = LinearRegression()
-        lr.fit(X, y)
-        y_pred = lr.predict(X)
-        
-        # Calculate metrics
-        r2 = r2_score(y, y_pred)
-        rmse = root_mean_squared_error(y, y_pred)
-        
-        # Create scatter plot
-        plt.figure(figsize=(8, 6))
-        plt.scatter(y, y_pred, alpha=0.6, label='Predictions')
-        
-        # Add perfect prediction line
-        min_val = min(y.min(), y_pred.min())
-        max_val = max(y.max(), y_pred.max())
-        plt.plot([min_val, max_val], [min_val, max_val], 'r--', 
-                 label='Perfect Prediction', linewidth=2)
-        
-        # Formatting
-        plt.xlabel(f'True {target}')
-        plt.ylabel(f'Predicted {target}')
-        plt.title(f'Linear Regression: Predicted vs Actual (R²={r2:.4f}, RMSE={rmse:.4f})')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        
-        if show:
-            plt.show()
-        
-        return plt
-
     # GOAL: filter the df by a mask or condition
-    #       the current implemention is used for Anthocyanin dataset
-    #       but changes can be done for adapting it for other datasets.
-    def filter_df_by_category(self, df, condition, indicator):
-        if condition == 'White and Blue Led':
-            values = [f"{letter}{i}" for letter in ['R','G'] for i in range(1, 6)]
-        elif condition == 'White Led':
-            values = [f"{letter}{i}" for letter in ['R','G'] for i in range(6, 11)]
-        elif condition == 'Shade':
-            values = [f"{letter}{i}" for letter in ['R','G'] for i in range(11, 16)]
-        elif condition == 'Control':
-            values = [f"C{i}" for i in range(1, 11)]
-        else:
-            values = []  # return empty if unknown condition
-
-        # filter the dataframe
-        res_df = df[df[indicator].isin(values)]
-        return res_df
+    def filter_df_by_category(self, df, filter_cond,df_column_for_filtering):
+        df = df[df[df_column_for_filtering] == filter_cond]
+        return df
+    
     
     # PARAMETERS:
     #  - trainable_features: list of trainable_features. our convention is the target
     #    variable is the last variable in this list
     #  - target: the traget variable for prediction
-    #  - fitler_df: flag parameter indicate that we filter the dataframe by mask
+    #  - filter_df: flag parameter indicate that we filter the dataframe by mask
     #  - filter_cond: if filter_df is True then we use this condition for filter the df.
-    #  - filter_indicator: we use this for filter the df.
-    def evaluate_regression_models(self,trainable_features,target,
-                                   filter_df=None,filter_cond=None,filter_indicator=None):
-        if filter_df and filter_cond and filter_indicator:
+    #  - df_column_for_filtering: we use this for filter the df.
+    def evaluate_regression_models(self,
+        trainable_features,
+        target,
+        filter_df=None,
+        filter_cond=None,
+        df_column_for_filtering=None,
+        split=False,
+        test_size=0.2):
+        if filter_df and filter_cond and df_column_for_filtering:
             df=self.df.copy()
-            df=self.filter_df_by_category(df,filter_cond,filter_indicator)
+            df=self.filter_df_by_category(df,filter_cond,df_column_for_filtering)
         else:
             df=self.df
         X,y=self.split_dataset_to_X_and_y(trainable_features,target,df)
         results_df=pd.DataFrame()
         results_df=self.model_evaluation(X, y,target,results_df,self.pretty_names_map,
-                              self.reg_models,split=False)
-        if filter_df and filter_cond:
-            results_df[filter_indicator]=filter_cond
+                              self.reg_models,split=split,test_size=test_size)
         return results_df
     
 
@@ -470,258 +419,9 @@ class training:
                     
         self.r2_ndi_df=r2_ndi_df.astype('float')
         self.r2_ndi_df_model=str(model)
-        self.r2_ndi_df_traget=target_string
+        self.r2_ndi_df_target=target_string
         
         return r2_ndi_df       
 
     # endregion
 
-    ###########
-    #
-    # PLOT
-    #
-    ##########
-
-    def get_Anthocyanin_color_map(self):
-        color_map = {f"R{i}": "red" for i in range(1, 16)}
-        color_map.update({f"C{i}": "red" for i in range(1, 6)})
-        color_map.update({f"G{i}": "green" for i in range(1, 16)})
-        color_map.update ({f"C{i}": "green" for i in range(6, 11)})
-        return color_map
-    
-    #GOAL:set the markers shapes for the points by their indector value
-    def set_Anthocyanin_markers(self):
-        letters = ["R", "G"]
-        count = 5
-        grp_A = [f"{letter}{i}" for letter in letters for i in range(1, count + 1)]
-        grp_B = [f"{letter}{i}" for letter in letters for i in range(6, 2*count + 1)]
-        grp_C = [f"{letter}{i}" for letter in letters for i in range(11, 3*count + 1)]
-        grp_D = [f"C{i}"  for i in range(1, 2*count + 1)]
-
-        # mark the groups . Common marker options:
-        # 'o' → circle ,'s' → square, '^' → triangle up, # 'D' → diamond
-        markers = {a: 'o' for a in grp_A}
-        markers.update({b: 's' for b in grp_B})
-        markers.update({c: '^' for c in grp_C})
-        markers.update({d: 'D' for d in grp_D})
-
-        labels={'o':'White and Blue Led','s':'White Led',
-                '^':'Shade','D':'control'}
-        return  markers,labels
-
-    def set_Anthocyanin_categories_shapes_in_plot(self,plt,X,y,df,target,indecator):
-        markers,labels=self.set_Anthocyanin_markers()
-
-        y_to_mark={}
-        for index, row in df.iterrows():
-            point_shape = markers.get(row[indecator], 'v')  # default shape : triangle down
-            y_to_mark[row[target]]=point_shape
-        
-        x_vals=X.values.ravel()
-        points=list(zip(x_vals,y))
-        #assign the shapes to the points 
-        for mark in set(markers.values()):
-            x_points=[p[0] for p in points if y_to_mark[p[1]]==mark]
-            y_points=[p[1] for p in points if y_to_mark[p[1]]==mark]
-            plt.scatter(x_points,y_points, marker=mark, label=labels[mark])
-
-   
-
-    ######################################################
-
-    def find_closest_color_name(self,requested_color):
-        min_distance = float('inf')
-        closest_name = None
-        for name in webcolors.names("css3"):
-            r_c, g_c, b_c = webcolors.name_to_rgb(name)
-            # Calculate Euclidean distance
-            distance = ((r_c - requested_color[0]) ** 2 +
-                        (g_c - requested_color[1]) ** 2 +
-                        (b_c - requested_color[2]) ** 2) ** 0.5
-            if distance < min_distance:
-                min_distance = distance
-                closest_name = name
-        return closest_name
-    
-    def get_color_name(self,rgb_tuple):
-        try:
-            # Try to find an exact match in the CSS3 color list
-            hex_value = webcolors.rgb_to_hex(rgb_tuple)
-            return webcolors.hex_to_name(hex_value, spec='css3')
-        except ValueError:
-            # If no exact match, find the closest named color
-            return self.find_closest_color_name(rgb_tuple)
-
-   
-    #GOAL: plot the values of the Anthocyanin in one line
-    def plot_Anthocyanin_values_in_one_line_plot(self,plt,y_arr,df,target,indecator,
-                                                 trainable_features=None, hp_order='vsh') :
-        markers,labels=self.set_Anthocyanin_markers()
-
-        y_to_mark={}
-        for index, row in df.iterrows():
-            point_shape = markers.get(row[indecator], 'v')  # default shape : triangle down
-            y_to_mark[row[target]]=point_shape
-
-        #assign the shapes to the points 
-        for mark in set(markers.values()):
-            y_points=[y for y in y_arr if y_to_mark[y]==mark]
-            dummy_values = np.zeros_like(y_points)
-            plt.scatter(dummy_values,y_points, marker=mark, label=labels[mark])
-        
-        #annoatate the indecator values and hyper-parameter values (as string) 
-        ax = plt.gca()
-        color_map=self.get_Anthocyanin_color_map()
-        for idx, row in df.iterrows():
-            point_color = color_map.get(row[indecator], 'black')
-            ax.annotate(
-                str(row[indecator]),
-                (0,row[target]),
-                textcoords='offset points',
-                xytext=(15,0),
-                ha='left',
-                color=point_color
-            )
-            if trainable_features and  hp_order=='vsh': 
-                hyperParameter_lst=row[trainable_features[:-1]].values.tolist()
-                v,s,h=hyperParameter_lst
-                
-                # Convert to RGB (result is a tuple of floats in [0.0, 1.0])
-                r, g, b= colorsys.hsv_to_rgb(h, s, v)
-                # To get standard 8-bit RGB values (0-255 range), multiply by 255
-                r_8bit = int(r * 255)
-                g_8bit = int(g * 255)
-                b_8bit = int(b * 255)
-                rgb_color = (r, g, b)
-                rgb_8_bit=(r_8bit,g_8bit, b_8bit )
-                color_name=self.get_color_name(rgb_8_bit)
-                ax.annotate(
-                    color_name,
-                    (0,row[target]),
-                    textcoords='offset points',
-                    xytext=(75,0),
-                    ha='left',
-                    color=rgb_color
-                )
-        plt.xlabel(target)
-        ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.1), ncol=3)
-
-
-   
-
-    # GOAL:
-    #   - plot linear regression of one feature (the first features of 'trainable_features ) 
-    # PARAMERTERS:
-    #  - indecator: parameter to mark to the points (for example :'catalog id')
-    #  - color_map : dictionary of colors for the points
-    #  - condition : plot only one group (for example :'white led')
-    #  - plot_seperate : plot every one from 4 catgories in different plot
-    def plot_linear_regression(self, trainable_features, target,
-                           indecator='', color_map={}, condition=None,
-                           plot_separate=False,show=True):
-        df = self.df.copy()
-        
-        # Helper function to plot one dataframe
-        def plot_single(ax, sub_df, title_suffix=''):
-            X, y = self.split_dataset_to_X_and_y(trainable_features, target, sub_df)
-            lr = LinearRegression()
-            lr.fit(X, y)
-            y_pred = lr.predict(X)
-            r2 = r2_score(y, y_pred)
-            rmse=root_mean_squared_error(y,y_pred)
-
-            # Plot regression line
-            ax.plot(X, y_pred, color='red', label='Regression Line')
-            
-            # Plot points
-            if target == 'Anthocyanin':
-                color_map = self.get_Anthocyanin_color_map()
-                self.set_Anthocyanin_categories_shapes_in_plot(ax, X, y, sub_df, target, indecator)
-            else:
-                ax.scatter(X, y, label='Data Points')
-            
-            # Annotate each point
-            for idx, row in sub_df.iterrows():
-                point_color = color_map.get(row[indecator], 'black')
-                ax.annotate(
-                    str(row[indecator]),
-                    (row[trainable_features[0]], row[target]),
-                    textcoords='offset points',
-                    xytext=(0, 10),
-                    ha='center',
-                    color=point_color
-                )
-            
-            # Fit the OLS model
-            # Add a constant (intercept) to the independent variables
-            X = sm.add_constant(X)
-
-            # Fit the OLS model
-            model = sm.OLS(y, X).fit()
-            p_values=np.round(model.pvalues[trainable_features[0]],8)
-           
-            stats_text = f'$R^2$ = {r2:.3f}\n$RMSE$ = {rmse:.3f}\n$p_value$={p_values}'
-            ax.annotate(stats_text, 
-                        xy=(0.05, 0.97),              # Top-left of the box
-                        xycoords='axes fraction', 
-                        va='top',                    # Ensures the top of the text starts at 0.9
-                        fontsize=12, 
-                        bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.5))
-            
-            ax.set_xlabel(f'{trainable_features[0]} (x)')
-            ax.set_ylabel(f'{target} (y)')
-            ax.set_title(f'{title_suffix}')
-            ax.grid(True)
-            ax.legend()
-        
-        if plot_separate:
-            # pdb.set_trace()
-            # If plotting separate subplots, define categories
-            categories = ['White and Blue Led', 'White Led', 'Shade', 'Control']
-            n_rows, n_cols = 2, 2
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 10), sharey=True)
-            axes = axes.flatten()  # flatten for easy iteration
-            for ax, cat in zip(axes, categories):
-                sub_df = self.filter_df_by_category(df, cat, indecator)
-                plot_single(ax, sub_df, title_suffix=f'{cat}')
-            # Hide any unused axes if categories < n_rows*n_cols
-            for i in range(len(categories), len(axes)):
-                axes[i].axis('off')
-            plt.tight_layout()
-            if show:
-                plt.show()
-        else:
-            # Filter by condition if provided
-            if condition:
-                df = self.filter_df_by_category(df, condition, indecator)
-            plt.figure(figsize=(10, 5))
-            plot_single(plt.gca(), df, title_suffix='Linear Regression')
-            if show:
-                plt.show()
-
-        return plt
-
-    def plot_heatmap_of_r2_score_of_ndi(self):
-        if self.r2_ndi_df is not None:
-            ndi_df=self.r2_ndi_df
-            model= self.r2_ndi_df_model
-            target=self.r2_ndi_df_traget
-            
-            if ndi_df.columns.str.contains("^Unnamed").any():
-                ndi_df=self.fix_ndi_df(ndi_df)
-            # 2. Plot the heatmap using Seaborn
-            plt.figure(figsize=(10, 6)) # Optional: Adjusts the size of the plot
-            sns.heatmap(ndi_df )
-            # Use 'df' for raw data heatmap, or 'corr_matrix' for correlation heatmap
-            
-            # 3. Add titles and labels (optional)
-            msg=f'''R2 scores of {model}
-                for NDI(band_1,band_2) to {target} for all the records in the in the dataset '''
-            plt.title(msg)
-            plt.xlabel('Columns: band 1')
-            plt.ylabel('Index: band2')
-            
-            # 4. Display the plot
-            plt.show()
-        
-                    

@@ -15,15 +15,15 @@ def create_base_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s create --hs --th --ndi-tuple "583.85,507.56"
-  %(prog)s merge --hp-dataset data.csv --ref-dataset ref.csv --project lettuce
+  %(prog)s create --hs --th --ndi_tuple "583.85,507.56"
+  %(prog)s merge --params_dataset data.csv --ref_dataset ref.csv --project lettuce
   %(prog)s train --dataset complete.csv --features "ndvi,ndi,anthocyanin" --target anthocyanin
         """
     )
     
     # Global arguments
     parser.add_argument(
-        '--env-file', 
+        '--env_file', 
         default='.env',
         help='Path to environment file (default: .env)'
     )
@@ -51,6 +51,7 @@ Examples:
     _add_create_parser(subparsers)
     _add_merge_parser(subparsers)
     _add_train_parser(subparsers)
+    _add_plot_parser(subparsers)
     
     return parser
 
@@ -81,19 +82,19 @@ def _add_create_parser(subparsers) -> None:
     )
     
     create_parser.add_argument(
-        '--ndi-tuple',
+        '--ndi_tuple',
         type=str,
         help='NDI wavelength tuple as "wl1,wl2" (e.g., "583.85,507.56")'
     )
     
     create_parser.add_argument(
-        '--create-ndi-table',
+        '--create_ndi_table',
         action='store_true',
         help='Create NDI tables for hyperspectral images'
     )
     
     create_parser.add_argument(
-        '--split-objects',
+        '--split_objects',
         action='store_true',
         help='Split images to objects using annotations'
     )
@@ -103,28 +104,21 @@ def _add_merge_parser(subparsers) -> None:
     """Add dataset merging subcommand parser."""
     merge_parser = subparsers.add_parser(
         'merge',
-        help='Merge hyperparameter and reference datasets'
+        help='Merge parameters and reference datasets'
     )
     
     merge_parser.add_argument(
-        '--hp-dataset',
+        '--params_dataset',
         required=True,
-        help='Path to hyperparameter dataset CSV file'
+        help='Path to parameters dataset CSV file'
     )
     
     merge_parser.add_argument(
-        '--ref-dataset', 
+        '--ref_dataset', 
         required=True,
         help='Path to reference dataset CSV file'
     )
-    
-    merge_parser.add_argument(
-        '--project',
-        required=True,
-        choices=['lettuce_BENI_ATAROT'],
-        help='Project type for merging strategy'
-    )
-
+   
 
 def _add_train_parser(subparsers) -> None:
     """Add ML training subcommand parser."""
@@ -171,13 +165,73 @@ def _add_train_parser(subparsers) -> None:
     )
     
     train_parser.add_argument(
-        '--show-plots',
+        '--show_plots',
         action='store_true',
         help='Display plots interactively (default: save only)'
     )
     
     train_parser.add_argument(
-        '--plot-separate',
+        '--plot_separate',
+        action='store_true',
+        help='Create separate plots for each condition'
+    )
+
+
+def _add_plot_parser(subparsers) -> None:
+    """Add plotting subcommand parser."""
+    plot_parser = subparsers.add_parser(
+        'plot',
+        help='Generate plots from datasets'
+    )
+    
+    plot_parser.add_argument(
+        '--dataset',
+        type=str,
+        required=True,
+        help='Path to dataset file'
+    )
+    
+    plot_parser.add_argument(
+        '--type',
+        type=str,
+        choices=['regression', 'anthocyanin', 'r2-score-of-ndi'],
+        required=True,
+        help='Type of plot to generate'
+    )
+    
+    plot_parser.add_argument(
+        '--features',
+        type=str,
+        help='Comma-separated list of feature columns'
+    )
+    
+    plot_parser.add_argument(
+        '--target',
+        type=str,
+        help='Target column name'
+    )
+    
+    
+    plot_parser.add_argument(
+        '--condition',
+        type=str,
+        help='Filter condition for plots'
+    )
+    
+    plot_parser.add_argument(
+        '--model',
+        type=str,
+        help='Model name for NDI plots'
+    )
+    
+    plot_parser.add_argument(
+        '--show_plots',
+        action='store_true',
+        help='Display plots interactively (default: save only)'
+    )
+    
+    plot_parser.add_argument(
+        '--plot_separate',
         action='store_true',
         help='Create separate plots for each condition'
     )
@@ -231,7 +285,7 @@ def _validate_arguments(args_dict: Dict) -> None:
                 # Convert to tuple
                 args_dict['ndi_tuple'] = (float(wavelengths[0]), float(wavelengths[1]))
             except (ValueError, IndexError):
-                raise ValueError("--ndi-tuple must be in format 'wl1,wl2' with numeric values")
+                raise ValueError("--ndi_tuple must be in format 'wl1,wl2' with numeric values")
     
     # Validate train command
     elif args_dict.get('command') == 'train':

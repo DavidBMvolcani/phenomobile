@@ -13,147 +13,274 @@ from scipy.signal import find_peaks
 from scipy.stats import gaussian_kde
 from scipy import stats
 
+import pickle
 
 class rgb_image:
 
      # PARAMETERS:
     #     - img_bgr : img_bgr image 
     #     - bb_df: the dataframe of rgb images and their object (like plant) bounding boxes
+    #       (!) it must include the fields:
+    #          - bbox_x, 
+    #          - bbox_y, 
+    #          - bbox_width, 
+    #          - bbox_height
     #     - df_index: the index of the image in bb_df
-    #     - 
-    def __init__(self,img_bgr,bb_df,df_index):
+    #     - config : project configuration used to set
+    #                the strategy for computing the mask of the object
+    #    - pickle_mask_path: in case the mask is computed using pickle masks,
+    #                        this is the path to the pickle mask file
+    #    - bb_date : the date of the images (used to match with the pickle mask file)
+    def __init__(self,
+            img_bgr=None,
+            bb_df=None,
+            df_index=None,
+            config=None,
+            pickle_mask_path=None,
+            bb_date=None):
+
+
+        self.config=config
+
+        mask_config=self.config.get("mask_computation_method", {})
+        method = mask_config.get("method")
+        if method =='pickle_masks':
+            if pickle_mask_path is None:
+                raise ValueError("pickle_mask_path must be provided")
+            pickle_folder=pickle_mask_path
+            
+            if bb_date is None:
+                raise ValueError("the date of the images must be provided")
+            pickle_files_names= os.listdir(pickle_folder)
+            pickle_match_lst=[f for f in pickle_files_names if bb_date in f]
+            if len(pickle_match_lst)==0:
+                raise ValueError("No pickle file found in the pickle mask folder")
+            elif len(pickle_match_lst)>1:
+                raise ValueError("Multiple pickle files found in the pickle mask folder")
+            
+            pickle_file_name=pickle_match_lst[0]
+
+            self.bb_df = pd.read_pickle(os.path.join(
+                pickle_folder, pickle_file_name))
+            print("take the bb_df from pickle file")
+        else:
+            self.bb_df=bb_df
+            if bb_df is None:
+                raise ValueError("bb_df must be provided")
+
+        if df_index is None:
+            raise ValueError("df_index must be provided")
+
+        self.df_index=df_index
+            
+
+       
+        if img_bgr is None:
+            raise ValueError("img_bgr must be provided")
+
+        if ('bbox_x' not in self.bb_df.columns or \
+            'bbox_y' not in self.bb_df.columns or \
+            'bbox_width' not in self.bb_df.columns or \
+            'bbox_height' not in self.bb_df.columns):
+            raise ValueError("bb_df must include the fields: bbox_x, bbox_y, bbox_width, bbox_height")
+        
         self.img_rgb=cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        blank_img =np.zeros(self.img_rgb.shape[:2])
+  
         
         #compute the croped img by the bb
-        cropped_img,x1,y1,x2,y2=self.compute_croped_img(bb_df,df_index)
-        
-        #compute hsv values
-        self.compute_hsv_values(cropped_img)
-        
-        #compute binary image of the object
-        hue_lt,value_ut=self.compute_thersholds( self.hue_img,self.value_img)
-        obj_binary_img = (self.hue_img > hue_lt)  & ( self.value_img<value_ut)
-        blank_img[y1:y2,x1:x2]=obj_binary_img
-        objBinImg=blank_img.copy()
+        self.cropped_img=self.compute_croped_img()
 
-        self.obj_binary_img= obj_binary_img
-        
-        #compute hsv means of the object
-        self.hue_plant_mean=self.hue_img[obj_binary_img].mean()
-        self.saturation_plant_mean=self.saturation_img[obj_binary_img].mean()
-        self.value_plant_mean=self.value_img[obj_binary_img].mean()
+        #compute the mask of the object
+        mask=self.compute_mask()
+        if mask is not None:
+            self.mask=mask
 
-    def compute_croped_img(self,bb_df,df_index):
-        index=bb_df.index[df_index]
-        x1, y1=bb_df.at[index,'bbox_x'],bb_df.at[index,'bbox_y']
-        w,h=bb_df.at[index,'bbox_width'],bb_df.at[index,'bbox_height']
+        self.masked_img=self.get_masked_img()
+        # compute hsv values of the  masked image
+        self.compute_hsv_values()
+        
+
+    def compute_croped_img(self):
+        index=self.bb_df.index[self.df_index]
+        x1, y1=self.bb_df.at[index,'bbox_x'],self.bb_df.at[index,'bbox_y']
+        w,h=self.bb_df.at[index,'bbox_width'],self.bb_df.at[index,'bbox_height']
         x2=x1+w
         y2=y1+h
         cropped_image=self.img_rgb[y1:y2,x1:x2]
-        return cropped_image,x1,y1,x2,y2
+        return cropped_image
 
-    def compute_hsv_values(self,croped_img,plot=False):
-        hsv_img = rgb2hsv(croped_img)
-        self.hue_img = hsv_img[:, :, 0]
-        self.saturation_img=hsv_img[:, :, 1]
-        self.value_img = hsv_img[:, :, 2]
+    def compute_hsv_values(self,plot=False):
+        
+        img = self.img_rgb.copy()
+        hsv_img = rgb2hsv(img)
+        hue_img = hsv_img[:, :, 0]
+        saturation_img = hsv_img[:, :, 1]
+        value_img = hsv_img[:, :, 2]
         if plot:
             self.plot_hsv_images()
+        #mask the hsv images
+        mask=self.mask
+        self.masked_hue = hue_img[mask > 0]
+        self.masked_saturation = saturation_img[mask > 0]
+        self.masked_value = value_img[mask > 0]
+        
 
-    def compute_thersholds(self,hue_img,value_img):
-        small_hue_img = cv2.resize(hue_img, (512, 512), interpolation=cv2.INTER_AREA)
-        small_value_img = cv2.resize(value_img, (512, 512), interpolation=cv2.INTER_AREA)
-        hue_lt = self.find_x_vally(small_hue_img)
-        value_ut = self.find_x_vally(small_value_img)
-        return hue_lt,value_ut
+    # here we compute the mask of the object by the method specified in the config
+    def compute_mask(self):
+        if self.config is None:
+            raise ValueError("config for mask computation must be provided")
+        mask_config=self.config.get("mask_computation_method", {})
+        method = mask_config.get("method")
+        if method == "hsv_threshold":
+            self.compute_hsv_threshold_mask()
+        elif method == "object_contours":
+            mask=self.compute_object_contours_mask()
+        elif method == "pickle_masks":
+            mask=self.get_pickle_mask()
+        else:
+            raise ValueError(f"Unknown mask computation method: {method}")
 
-   
+        return mask
 
-    ##########
-    #
-    # AUXILIARY FUNCTIONS
-    #
-    ##########
+    def compute_hsv_threshold_mask(self):
+        raise NotImplementedError("compute_hsv_threshold_mask method is not implemented yet")
+    
+    # (!) this function parameter and strategy should be configurable based on
+    # (!) the specific use case and image characteristics of the scene and the realtion of 
+    # (!) the object of interest to the background 
+    def compute_object_contours_mask(self,lt=50,ht=150):
 
-    # GOAL:
-    #    find the theroshold number for binary filter of the object
-    # explanation:
-    #    the hsv images are differ in their values
-    #    so we can't peaks constant value to filter the hsv image
-    #    (like hue image) with this. Instead we assume the distrbution
-    #    of the hsv values are bimodel with two dominant peaks
-    #    one model is for the object and the other is the background
-    #    so we filter out the vally point in each image and use it for filter.
-    # 
-    # PARAMETERS:
-    #     - img : one of the hsv images (for example: hue image)
-    def find_x_vally(self,img,plot=False):
+        # helper function to compute the largest contour mask
+        def _compute_largest_contour_mask(lt=lt,ht=ht):
+            # 1. Load the image
+            img = self.cropped_img.copy()
+            # Convert to grayscale (Canny requires single channel)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        data=img.ravel()
-        # Calculate Z-scores for each data point
-        z_scores = np.abs(stats.zscore(data))
-        
-        # Define a threshold (e.g., 3 standard deviations)
-        threshold = 3
-        
-        # Create a boolean mask of data points that are NOT outliers
-        not_outliers_mask = z_scores <= threshold
-        
-        # Filter the data to keep only non-outliers
-        cleaned_data = data[not_outliers_mask]
-        
-        
-        # 2. Perform Kernel Density Estimation (KDE)
-        # Create a smooth representation of the distribution
-        kde = gaussian_kde(cleaned_data)
-        # Define the range over which to evaluate the KDE
-        num_points=200
-        x_range = np.linspace(min(cleaned_data), max(cleaned_data),num_points)
-        # Get the density values for the x_range
-        y_density = kde(x_range)
-        
-        
-        # Find all peaks; distance helps filter noise
-        skip_distance=num_points*0.1
-        peak_indices, _ = find_peaks(y_density, distance=skip_distance)
-        
-        # Identify the TWO highest peaks specifically
-        # Sort by density (y values) and take the top two
-        top_two_peaks = peak_indices[np.argsort(y_density[peak_indices])[-2:]]
-        peak_start, peak_end = np.sort(top_two_peaks) # Ensure they are in x-axis order
-        
-        # --- 4. FIND THE VALLEY ---
-        # Slice the density array between the two peak indices
-        valley_slice = y_density[peak_start:peak_end]
-        # Find the index of the minimum value in that slice
-        relative_valley_index = np.argmin(valley_slice)
-        valley_index = peak_start + relative_valley_index
-        
-        # Final coordinates
-        valley_x = x_range[valley_index]
-        valley_y = y_density[valley_index]
-        # print(f"Valley found at X: {valley_x:.2f}, Y: {valley_y:.4f}")
+            # 3. Apply Canny Edge Detection
+            edges = cv2.Canny(gray, threshold1=lt, threshold2=ht)
 
-        if plot:
-            self.plot_Bimodal_Distribution(x_range, y_density,top_two_peaks,
-                                           valley_x, valley_y)    
-        return valley_x
+            # Create a kernel (the size determines how far the 'reach' is to connect lines)
+            kernel = np.ones((15,15), np.uint8)
 
+            # 4. Dilate: Makes the white lines thicker to bridge the gaps
+            thick_edges = cv2.dilate(edges, kernel, iterations=1)
+
+            # 5. Closing: Fills small holes inside the boundary
+            closed_edges = cv2.morphologyEx(thick_edges, cv2.MORPH_CLOSE, kernel)
+
+            # 6. THE FILLING STEP: Find and fill the largest hole
+            contours, _ = cv2.findContours(closed_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            # Create a blank black canvas for our result
+            solid_mask = np.zeros_like(edges)
+
+            if len(contours) == 0:
+                return 0,gray,solid_mask,None
+            
+            if len(contours) > 0:
+                # Pick the largest shape (the lettuce)
+                largest = max(contours, key=cv2.contourArea)
+
+                # Compute the area in pixels
+                area_pixels = cv2.contourArea(largest)
+
+                # Total pixels in the image
+                total_pixels = img.shape[0] * img.shape[1]
+
+                # Percentage of image covered by lettuce
+                percentage = (area_pixels / total_pixels) * 100
+
+                #print(f"Lettuce coverage: {percentage:.2f}%")
+            
+                percentage=percentage/100
+                return percentage,gray,solid_mask,largest
+        
+        percentage,gray,solid_mask,largest = _compute_largest_contour_mask(lt=lt,ht=ht)
+        while  percentage<0.5 and lt>1 and ht>5:
+            # print("change thresholds")
+            ht=ht/2
+            lt=lt/2
+            percentage,gray,solid_mask,largest=_compute_largest_contour_mask(lt=lt,ht=ht)
+
+        # DRAW and FILL the shape
+        cv2.drawContours(solid_mask, [largest], -1, 255, thickness=cv2.FILLED)
+
+        # perform erosion on solid mask to remove edges in the corner of the image that
+        #  are not part of the objects
+        kernel = np.ones((50,50),np.uint8)
+        solid_mask = cv2.morphologyEx(solid_mask, cv2.MORPH_ERODE, kernel)
+
+        return solid_mask
+
+       
+        
     ##########
     #
     # GETTER FUNCTIONS
     #
     ##########
     
-    def get_hsv_obj_means(self):
-        hm=self.hue_plant_mean
-        sm=self.saturation_plant_mean
-        vm=self.value_plant_mean
-        return hm,sm,vm
+    def get_masked_hsv_obj_means(self):
+       
+        return self.masked_hue.mean(),self.masked_saturation.mean(),self.masked_value.mean()
 
-    def get_binary_obj_img(self):
-        return self.obj_binary_img
+    def get_masked_hsv_obj_stds(self):
+       
+        return self.masked_hue.std(),self.masked_saturation.std(),self.masked_value.std()
+    
+    def get_masked_hsv_obj_medians(self):
+       
+       return np.median(self.masked_hue),np.median(self.masked_saturation),np.median(self.masked_value)
+
+    #
+    # get colored image with mask    
+    def get_masked_img(self):
+        if self.mask is None:
+            raise ValueError("Mask is not computed .")
+
+        mask=self.mask
+        return mask
+        # # 1. Ensure the mask is 8-bit (OpenCV requires CV_8U for masks)
+        # mask = mask.astype(np.uint8)
+
+        # # 2. Force the mask to the exact size of the image if it's off
+        # if mask.shape[:2] != self.cropped_img.shape[:2]:
+        #     #print(f"Resizing mask from {mask.shape} to {cropped_img.shape[:2]}")
+        #     mask = cv2.resize(mask, (self.cropped_img.shape[1], self.cropped_img.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+        # # 3. Now apply the bitwise_and
+        # mask_img_color = cv2.bitwise_and(self.cropped_img, self.cropped_img, mask=mask)
+
+        # return mask_img_color
+    
+    # Deserialize masks from pickle file
+    def get_pickle_mask(self):
+        df_index=self.df_index
+        pickle_obj = self.bb_df.loc[df_index, 'mask']
+        mask = pickle.loads(pickle_obj)
+        
+        # Ensure mask is binary (True/False) and proper numpy array
+        if mask is None:
+            raise ValueError("Pickle mask is None")
+            
+        # Convert to numpy array if not already
+        if not isinstance(mask, np.ndarray):
+            mask = np.array(mask)
+            
+        # Ensure binary values (0, 1) for True/False mask
+        if mask.dtype != np.uint8:
+            mask = mask.astype(np.uint8)
+            
+        # Validate mask contains only binary values
+        unique_values = np.unique(mask)
+        if not np.all(np.isin(unique_values, [0, 1])):
+            self.logger.warning(f"Mask contains non-binary values: {unique_values}")
+            # Convert to binary by thresholding
+            mask = (mask > 0).astype(np.uint8)
+            
+        return mask
+        
     ##########
     #
     # PLOT FUNCTIONS
@@ -162,9 +289,9 @@ class rgb_image:
 
     def plot_hsv_images(self):
         img_rgb=self.img_rgb
-        hue_img=self.hue_img
-        saturation_img=self.saturation_img
-        value_img=self.value_img 
+        hue_img=self.masked_hue
+        saturation_img=self.masked_saturation
+        value_img=self.masked_value 
         
         fig, (ax0, ax1, ax2,ax3) = plt.subplots(ncols=4, figsize=(8, 2))
         ax0.imshow(img_rgb)
@@ -180,13 +307,4 @@ class rgb_image:
         ax3.set_title("Value channel")
         ax3.axis('off')
 
-    def plot_Bimodal_Distribution(self,x_range, y_density,top_two_peaks,
-                                 valley_x, valley_y):
-        plt.figure(figsize=(10, 5))
-        plt.plot(x_range, y_density, label='KDE Density', color='black')
-        plt.plot(x_range[top_two_peaks], y_density[top_two_peaks], "x", color='red', markersize=10, label='Top 2 Peaks')
-        plt.plot(valley_x, valley_y, "o", color='blue', label='Valley (Minimum)')
-        plt.fill_between(x_range, y_density, alpha=0.1)
-        plt.title("Bimodal Distribution: Peaks and Intervening Valley")
-        plt.legend()
-        plt.show()
+    

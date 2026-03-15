@@ -1,0 +1,281 @@
+label_name,bbox_x,bbox_y,bbox_width,bbox_height,image_name,image_width,image_height,valPlantMean,satPlantMean,huePlantMean,plantBinImg
+R1,186,140,1747,1418,20251207_141612.jpg,2992,2992,0.214881532444976,0.7740660707435659,0.1604700767296171,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R2,0,99,1538,1657,20251207_141728.jpg,2992,2992,0.1726507231974691,0.6994066296118648,0.14178481148264954,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R3,425,132,1599,1484,20251207_141814.jpg,2992,2992,0.15957916447171258,0.5809619204182664,0.1484376106849835,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R4,252,190,1525,1533,20251207_141839.jpg,2992,2992,0.23899086144722193,0.38858585635576187,0.13303571759609015,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R5,219,50,1698,1517,20251207_141906.jpg,2992,2992,0.23387973558976657,0.3820208515304876,0.14854691598485537,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G1,491,50,1681,1739,20251207_142441.jpg,2992,2992,0.33606179441214784,0.8346107044240142,0.21607947986237544,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G2,351,387,1657,1665,20251207_142615.jpg,2992,2992,0.35417975376898525,0.7448927122041709,0.20893575725533933,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G3,433,0,1484,1475,20251207_142834.jpg,2992,2992,0.36604955383833054,0.811700408548654,0.20873939450472762,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G4,46,585,1401,1385,20251207_142946.jpg,2992,2992,0.3206327684173371,0.8963373929330879,0.19828079004818946,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G5,359,33,1500,1418,20251207_143054.jpg,2992,2992,0.31411782720700837,0.741053028905702,0.19756609396467126,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R6,747,256,1245,1253,20251207_143358.jpg,2992,2992,0.23048395325147972,0.3299788908342711,0.13456832653414108,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R7,409,115,1591,1566,20251207_143452.jpg,2992,2992,0.2557340020187108,0.6094049597661481,0.13240235916680293,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R8,0,0,2057,1665,20251207_143606.jpg,2992,2992,0.24250893904029036,0.6439953381903503,0.14827480780165186,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R9,219,41,1657,1599,20251207_143703.jpg,2992,2992,0.3088714074867274,0.3125792065725086,0.11162795605491106,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R10,161,272,1673,1492,20251207_143753.jpg,2992,2992,0.1874424943471651,0.6723858406983944,0.1523953298824155,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G6,104,99,1830,1962,20251207_144122.jpg,2992,2992,0.3705667049336353,0.9155951223145853,0.19796670638768382,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G7,285,140,1888,1879,20251207_144357.jpg,2992,2992,0.3545711776303595,0.921518645227049,0.20106091188766437,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G8,392,17,2011,1871,20251207_144451.jpg,2992,2992,0.35807924011959713,0.9479647786986096,0.2009418603331938,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G9,29,379,2077,1789,20251207_144545.jpg,2992,2992,0.38339325941735863,0.9431735968155976,0.19380139777782357,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G10,5,214,1731,1805,20251207_144636.jpg,2992,2992,0.41878475253452097,0.9569638827260565,0.18881645709252276,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R11,351,50,1599,1673,20251207_144921.jpg,2992,2992,0.2665199582649956,0.8638218836640098,0.1738452500464377,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R12,384,17,1681,1789,20251207_145032.jpg,2992,2992,0.2786566209380619,0.8827763868727412,0.1746823490379746,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R13,260,330,1616,1616,20251207_145122.jpg,2992,2992,0.23742308541147827,0.8430888181470482,0.1678219072325435,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R14,54,486,1657,1508,20251207_145219.jpg,2992,2992,0.28970252185194834,0.8575117802985999,0.16864902641768673,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+R15,359,0,1648,1442,20251207_145303.jpg,2992,2992,0.26431983054352,0.884786619348478,0.16898596047613812,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G11,293,58,1772,2242,20251207_145551.jpg,2992,2992,0.41973295616449063,0.9672517153146825,0.19456204198432508,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G12,227,82,1813,1888,20251207_145825.jpg,2992,2992,0.41224279352456555,0.9738350738786063,0.1916651176943879,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G13,318,198,2118,1962,20251207_145911.jpg,2992,2992,0.4422685822741395,0.9696141823974601,0.19439659645075363,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G14,104,0,2052,2118,20251207_150011.jpg,2992,2992,0.4872591641226038,0.9668734657479119,0.19171171004837065,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+G15,244,338,1838,1986,20251207_150059.jpg,2992,2992,0.3768195947356227,0.98833538164934,0.19101806205744207,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C1,549,379,1500,1508,20251207_150459.jpg,2992,2992,0.2781481443445333,0.7398942337884925,0.12634883815284428,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C2,62,371,2019,1797,20251207_150611.jpg,2992,2992,0.2943122316781639,0.6879769316664444,0.11028644481932225,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C3,400,264,1838,1764,20251207_150705.jpg,2992,2992,0.24534616525968744,0.7244266858642715,0.12033572954398383,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C4,442,462,1640,1591,20251207_150755.jpg,2992,2992,0.22546024721623062,0.7205374366616946,0.09852902946610469,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C5,211,140,1929,1879,20251207_150851.jpg,2992,2992,0.24666223253669495,0.7552121011007508,0.13148061780266565,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C6,499,74,1838,1797,20251207_151126.jpg,2992,2992,0.41746604574084095,0.9733992819140352,0.18296123946694584,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C7,21,322,1756,1789,20251207_151213.jpg,2992,2992,0.39568621780862573,0.9492729833856189,0.18613861822697358,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C8,153,577,1723,1648,20251207_151303.jpg,2992,2992,0.41710851296678947,0.9610965602405797,0.1879345005409248,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C9,194,58,2110,1970,20251207_151405.jpg,2992,2992,0.4415044945908901,0.9818245180878061,0.18115142440726312,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"
+C10,260,585,1805,1681,20251207_151445.jpg,2992,2992,0.4363803949206684,0.9673936921815959,0.18273744489117888,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]"

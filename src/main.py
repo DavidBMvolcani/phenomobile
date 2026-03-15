@@ -6,8 +6,8 @@ A command-line interface for processing hyperspectral, thermal, and RGB images
 to extract plant phenotyping features and train machine learning models.
 
 Usage:
-    python main.py create --hs --th --ndi-tuple "583.85,507.56"
-    python main.py merge --hp-dataset data.csv --ref-dataset ref.csv --project lettuce
+    python main.py create --hs --th --ndi_tuple "583.85,507.56"
+    python main.py merge --params_dataset data.csv --ref_dataset ref.csv --project lettuce
     python main.py train --dataset complete.csv --features "ndvi,ndi,anthocyanin" --target anthocyanin
 """
 
@@ -85,3 +85,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+#d

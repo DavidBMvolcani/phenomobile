@@ -1,0 +1,14 @@
+datasets==4.6.1
+matplotlib==3.10.8
+numpy==2.4.2
+pandas==3.0.1
+Pillow==12.1.1
+python-dotenv==1.2.1
+scikit_learn==1.8.0
+scipy==1.17.1
+seaborn==0.13.2
+skimage==0.0
+spectral==0.24
+statsmodels==0.14.6
+webcolors==25.10.0
+xgboost==3.2.0

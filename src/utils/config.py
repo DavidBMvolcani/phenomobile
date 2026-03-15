@@ -24,7 +24,7 @@ class ConfigManager:
         """
 
         # 1. CALCULATE PROJECT ROOT
-        # This points to the 'phenomobile' directory regardless of where you run the script
+        # This points to the 'phenomobile' directory 
         # __file__ is src/utils/config.py -> .parent is src/utils -> .parent is src -> .parent is root
         self.root_path = Path(__file__).resolve().parent.parent.parent
 
@@ -46,12 +46,19 @@ class ConfigManager:
         
         with open(main_config_path, 'r') as f:
             main_config = json.load(f)
+            data_src=main_config['data_source']
+            self.config['data_source'] = data_src['type'] #server or local
+            
         
         # Merge main config
         self._merge_config(main_config)
     
     def load_project_config(self) -> None:
         """Load project-specific configuration using absolute path."""
+        # Only load project config if specified
+        if not self.project_config:
+            return
+            
         # Fix: Use self.root_path
         project_config_path = self.root_path / 'config' / self.project_config
         
@@ -76,44 +83,32 @@ class ConfigManager:
         deep_merge(self.config, new_config)
     
     def load_environment(self) -> None:
-        """Load environment variables using absolute path."""
-        # Fix: Use self.root_path
+        """Load environment variables from .env file."""
+        if not self.env_file:
+            return
+            
         env_path = self.root_path / self.env_file
         
         if not env_path.exists():
-            raise FileNotFoundError(f"Environment file not found: {env_path}")
+            print(f"Warning: Environment file not found at {env_path}")
+            print("Continuing without environment variables - no server connection available")
+            return
         
-        load_dotenv(override=True, dotenv_path=env_path)
-        
-        # Load only server credentials and meta config from env
-        env_vars = [
-            'FlirImageExtractor_path',
-            'SMB_USERNAME', 
-            'SMB_PASSWORD',
-            'SMB_SERVER',
-            'SMB_SHARE'
-        ]
-        
-        missing_vars = []
-        for var in env_vars:
-            value = os.environ.get(var)
-            if value is None:
-                missing_vars.append(var)
-            else:
-                self.config[var] = value
-        
-        if missing_vars:
-            raise ValueError(f"Missing required environment variables: {missing_vars}")
+        load_dotenv(env_path)
     
     def setup_paths(self) -> None:
         """Setup project paths relative to the calculated project root."""
         # We use self.root_path as our anchor
         self.config['home_path'] = str(self.root_path)
         
-        dataset_folder = self.config.get('experiment_settings', {}).get('dataset_folder', 'datasets')
-        self.config['datasets_path'] = str(self.root_path / dataset_folder)
+        # Get dataset folder with proper fallback
+        experiment_settings = self.config.get('experiment_settings') or {}
+        dataset_folder = experiment_settings.get('dataset_folder', 'datasets')
+        self.config['datasets_path'] = self.root_path / dataset_folder
         
-        download_folder = self.config.get('paths', {}).get('download_folder', 'images')
+        # Get download folder with proper fallback
+        paths_config = self.config.get('paths') or {}
+        download_folder = paths_config.get('download_folder', 'images')
         self.config['download_path'] = str(self.root_path / download_folder)
         
         # Outputs and Src are also relative to root
@@ -122,6 +117,15 @@ class ConfigManager:
         
         if self.config['src_path'] not in sys.path:
             sys.path.insert(0, self.config['src_path'])
+
+        # Get pickle mask path -this is the path where the pickled masks are stored
+        # this path is relevant where you chosse to compute the objects mask
+        # from pre-computed masks in the config file
+        pickle_mask_path = self.config.get('pickle_mask_path')
+        if pickle_mask_path:
+            self.config['pickle_mask_path'] = str(self.root_path / pickle_mask_path)
+        else:
+            self.config['pickle_mask_path'] = str(self.root_path / 'pickled_objects')
     
     def get(self, key: str, default: Optional = None) -> Optional:
         """
@@ -169,7 +173,10 @@ class ConfigManager:
         Returns:
             Full path to dataset file
         """
-        return str(Path(self.config['datasets_path']) / dataset_name)
+        datasets_path = self.config['datasets_path']
+        # This joins them first, THEN resolves the whole thing to an absolute path
+        full_path = Path(datasets_path, dataset_name).resolve()
+        return str(full_path)
     
     def ensure_output_dir(self) -> str:
         """Ensure output directory exists and return path."""

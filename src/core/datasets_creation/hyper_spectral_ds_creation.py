@@ -9,7 +9,7 @@ from spectral import *
 import spectral as sp
 
 # my files
-from image_processing.hyper_spectral_image import hyper_spectral_image
+from image_processing.hyper_spectral_image import HyperSpectralImage
 from core.datasets_creation.dataset_creation import DatasetCreation
 
 
@@ -22,8 +22,9 @@ class HyperSpectralDsCreation(DatasetCreation):
         logger,
         map_hs_and_th_ds,
         annotation_file_name,
-        split,
+        split_image_to_objects,
         home_dir,
+        rotate_image,
         download_folder,
         formatted_datetime,
         data_source,
@@ -42,7 +43,8 @@ class HyperSpectralDsCreation(DatasetCreation):
         self.download_folder = download_folder
         self.formatted_datetime = formatted_datetime
         self.annotation_file_name = annotation_file_name
-        self.split = split
+        self.split_image_to_objects = split_image_to_objects
+        self.rotate_image = rotate_image
         self.COMPUTE_NDI = COMPUTE_NDI
 
         self.data_source = data_source
@@ -168,12 +170,14 @@ class HyperSpectralDsCreation(DatasetCreation):
                 img_num=img_name
 
                 #set argument to hs_img object ant create it
-                hs_img=hyper_spectral_image.hyper_spectral_image(
-                    img,wl,
+                hs_img=HyperSpectralImage(
+                    img,
+                    wl,
                     RGB_bands,
                     img_num,
+                    ROTATE= self.rotate_image,
                     ANNOTATION_PATH=local_annotation_file_path,
-                    SPLIT_IMAGE_TO_OBJECTS=SPLIT,
+                    SPLIT_IMAGE_TO_OBJECTS=self.split_image_to_objects,
                     acquisition_date=ad,
                     longitude=meta['longitude'],
                     latitude=meta['latitude'],

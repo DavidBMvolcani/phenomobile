@@ -40,7 +40,7 @@ import statsmodels.api as sm
 
 
 
-class training():
+class Training():
 
     # PARAMETERS:
     #    - dataset_name: name of the dataset that will be used for training

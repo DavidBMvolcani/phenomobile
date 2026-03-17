@@ -6,7 +6,7 @@ import time
 import cv2
 
 #my files
-import image_processing 
+from .image_processing import ImageProcessing 
 
 
 #######
@@ -15,34 +15,51 @@ import image_processing
 #
 #######
 
-class hyper_spectral_image:
+class HyperSpectralImage:
     # PARAMETERS:
     #     - img : hyper-spectral calibrated image
     #     - wl : list of the wavelenghts of the hyper-spectral image
     #     - RGB_bands: defualts bands of the hyper-spectral image
     #     - img_name: string- the number of the image
     #     - ROTATE : boolean variable indicate whether the original image is rotate 90 degree
-    #     - save_lbi : boolean flag for saving leaves binary image
+    #     - save_lbi : boolean flag for saving leaves(object) binary image
     #     - lbi_directory_path: the local path for saving the binary img
     #     - ndi_tuple: tuple of (wl1,wl2) that used for compute specific ndi of wl1,wl2
     #     - create_ndi_table: boolean value indicate whether to save the ndi table as csv file
     #     - ndi_table_directory_path: path to the ndi table
-    #     - isolate_leaves_technique: one of this options: {'by _hsv','by_ndvi'}
-    #     - hue_threshold: a thershold for the filter out the leaves
-    #     - saturation_threshold: a thershold for the filter out the leaves
     #     - ANNOTATION_PATH: path to annotation file, by defualt there are no need in annotation
     #     - SPLIT_IMAGE_TO_OBJECTS: boolean parameter
-    def __init__(self,img,wl,RGB_bands,img_name,ROTATE=True,save_lbi=False,lbi_directory_path='/',
-                 ndi_tuple=None,create_ndi_table=False,ndi_table_directory_path=None,
-                 isolate_leaves_technique='by_ndvi',ndvi_thershold=0.6,
-                 hue_threshold = 0.25,saturation_threshold=0.5,
-                 ANNOTATION_PATH="",SPLIT_IMAGE_TO_OBJECTS=False,acquisition_date="",
-                longitude="",latitude=""):
+    #     - object_filter_method: one of this options: {'by _hsv','by_ndvi'}
+    #     - hsv_filter_thresholds :
+    
+    def __init__(self,
+            img,
+            wl,
+            RGB_bands,
+            img_name,
+            ROTATE=True,
+            save_lbi=False,
+            lbi_directory_path='/',
+            ndi_tuple=None,
+            create_ndi_table=False,
+            ndi_table_directory_path=None,
+
+         
+
+            ANNOTATION_PATH="",
+            SPLIT_IMAGE_TO_OBJECTS=False,
+            acquisition_date="",
+            longitude="",
+            latitude="",
+            object_filter_method=None,
+            ndvi_threshold=None,
+            hsv_filter_thresholds=None):
 
         self.img=img
 
         self.wl=wl
         self.img_name=img_name
+        self.ROTATE=ROTATE
         self.acquisition_date=acquisition_date
         self.longitude=longitude
         self.latitude=latitude
@@ -50,10 +67,18 @@ class hyper_spectral_image:
         self.COMPUTE_NDI=create_ndi_table
         self.ndi_table_directory_path=ndi_table_directory_path
 
-        if isolate_leaves_technique=='by_hsv':
-            self.leaves_binary_img=self.detect_leaves_by_hsv(RGB_bands,hue_threshold,saturation_threshold)
-        else: # isolate_leaves_technique=='by_ndvi'
-            self.leaves_binary_img=self.detect_leaves_by_ndvi(ndvi_thershold)
+        if object_filter_method=='by_hsv':
+            hue_threshold=hsv_filter_thresholds['hue_threshold']
+            saturation_threshold=hsv_filter_thresholds['saturation_threshold']
+            self.leaves_binary_img=self.detect_leaves_by_hsv(
+                RGB_bands,
+                hue_threshold,
+                saturation_threshold)
+        elif object_filter_method=='by_ndvi':
+            self.leaves_binary_img=self.detect_leaves_by_ndvi(
+                ndvi_threshold)
+        else:
+            raise ValueError(f"Invalid object_filter_method: {object_filter_method}")
 
         if SPLIT_IMAGE_TO_OBJECTS and ANNOTATION_PATH:
             self.split_image_to_objects(img_name,ANNOTATION_PATH)
@@ -72,21 +97,27 @@ class hyper_spectral_image:
     # The staturation thershold  eliminate the calibaration panel from the image
     #
     # RETRUN VALUE: leaves binary image: leaves pixel are denoted as "1"
-    def detect_leaves_by_hsv(self,RGB_bands,hue_threshold,saturation_threshold):
+    def detect_leaves_by_hsv(self,
+        RGB_bands,
+    hue_threshold,
+    saturation_threshold):
         rgb_img=graphics.get_rgb(self.img,(RGB_bands))
         hsv_img = rgb2hsv(rgb_img)
         hue_img = hsv_img[:, :, 0]
         saturation_img=hsv_img[:, :, 1]
-        binary_img = (hue_img > hue_threshold) & (saturation_img > 0.5)
+        binary_img = (hue_img > hue_threshold) & (saturation_img > saturation_threshold)
         return  binary_img
 
-    def detect_leaves_by_ndvi(self,ndvi_thershold):
+    def detect_leaves_by_ndvi(self,ndvi_threshold):
         ndvi_ = self.get_ndvi()
-        return ndvi_>ndvi_thershold
+        return ndvi_>ndvi_threshold
 
     def split_image_to_objects(self,image_num,ANNOTATION_PATH):
-        self.img_proc=image_processing.image_processing(binary_img=self.leaves_binary_img,
-                                                        img_num=image_num,annot_path=ANNOTATION_PATH)
+        self.img_proc=ImageProcessing(
+            binary_img=self.leaves_binary_img,
+            img_num=image_num,
+            annot_path=ANNOTATION_PATH,
+            rotate=self.ROTATE)
         self.objs_df=self.img_proc.get_objs()
 
     #### fractional vegetation cover (FVC)

@@ -128,6 +128,15 @@ class ConfigManager:
         
         if self.config['src_path'] not in sys.path:
             sys.path.insert(0, self.config['src_path'])
+
+        # Get pickle mask path -this is the path where the pickled masks are stored
+        # this path is relevant where you chosse to compute the objects mask
+        # from pre-computed masks in the config file
+        pickle_mask_path = self.config.get('pickle_mask_path')
+        if pickle_mask_path:
+            self.config['pickle_mask_path'] = str(self.root_path / pickle_mask_path)
+        else:
+            self.config['pickle_mask_path'] = str(self.root_path / 'pickled_objects')
     
     def get(self, key: str, default: Optional = None) -> Optional:
         """

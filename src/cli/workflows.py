@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 # Import existing modules
-from ml.training import training as TrainingClass
+from ml.training import Training as TrainingClass
 
 # Import utilities
 from utils.logger import get_logger, setup_logger, log_execution_time, log_step, log_data_info
@@ -58,9 +58,20 @@ class DatasetCreationWorkflow:
         ndi_tuple = args.get('ndi_tuple')
         
         # Get config and experiment settings
-        experiment_settings = self.config.get('experiment_settings', {})
-        SPLIT = experiment_settings.get('SPLIT_IMAGE_TO_OBJECTS')
-        ANNOTATION_FILE_NAME = experiment_settings.get('ANNOTATION_FILE')
+      
+    
+        HS_dataset_creation_parameters = self.config.get('HS_dataset_creation_parameters', {})
+        SPLIT=HS_dataset_creation_parameters.get('SPLIT_IMAGE_TO_OBJECTS')
+        ROTATE_IMAGE=HS_dataset_creation_parameters.get('ROTATE_IMAGE')
+
+        HS_ANNOTATION_FILE_NAME = HS_dataset_creation_parameters.get('ANNOTATION_FILE')
+        HS_object_filter_method = HS_dataset_creation_parameters.get('object_filter_method')
+        HS_ndvi_threshold = HS_dataset_creation_parameters.get('ndvi_threshold')
+        HS_hsv_filter_thresholds = HS_dataset_creation_parameters.get('hsv_filter_thresholds',{})
+        
+        RGB_dataset_creation_parameters = self.config.get('RGB_dataset_creation_parameters', {})
+        RGB_ANNOTATION_FILE_NAME = RGB_dataset_creation_parameters.get('ANNOTATION_FILE')
+        
         home_dir = self.config.get('home_path')
         paths = self.config.get('paths', {})
         download_folder = paths.get('download_folder')
@@ -95,8 +106,9 @@ class DatasetCreationWorkflow:
             hs_ds=HyperSpectralDsCreation(
                 logger=self.logger,
                 map_hs_and_th_ds=map_hs_and_th_ds,
-                annotation_file_name=ANNOTATION_FILE_NAME,
-                split=SPLIT,
+                annotation_file_name=HS_ANNOTATION_FILE_NAME,
+                split_image_to_objects=SPLIT,
+                rotate_image=ROTATE_IMAGE,
                 home_dir=home_dir,
                 download_folder=download_folder,
                 formatted_datetime=formatted_datetime,
@@ -109,7 +121,10 @@ class DatasetCreationWorkflow:
                 SMB_SHARE=self.SMB_SHARE,
                 RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
                 YEAR_DIR_NAME=self.server_year_dir_name,
-                DATE_DIR_NAME=self.server_date_dir_name
+                DATE_DIR_NAME=self.server_date_dir_name,
+                object_filter_method=HS_object_filter_method,
+                ndvi_threshold=HS_ndvi_threshold,
+                hsv_filter_thresholds=HS_hsv_filter_thresholds
             )
             self.spectral_img_df, self.gray_for_HS_imgs = hs_ds.create_dataset()
         if th:
@@ -139,7 +154,7 @@ class DatasetCreationWorkflow:
                 download_folder=download_folder,
                 formatted_datetime=formatted_datetime,
                 data_source=self.data_source,
-                annotation_file_name=ANNOTATION_FILE_NAME,
+                annotation_file_name=RGB_ANNOTATION_FILE_NAME,
                 dataset_folder=self.dataset_folder,
                 SMB_USERNAME=self.SMB_USERNAME,
                 SMB_PASSWORD=self.SMB_PASSWORD,
@@ -277,7 +292,7 @@ class MLTrainingWorkflow:
         self.logger.info(f"Target: {target}")
         
         # Initialize training
-        from ml.training import training as TrainingClass
+        from ml.training import Training as TrainingClass
         ml = TrainingClass(
             dataset_name=dataset_path,
             config=self.config,

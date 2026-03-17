@@ -9,13 +9,8 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "train",
-                "--dataset",
-                "Anthocyanin_with_rgb_051225-050226.csv",
-                "--features",
-                "valPlantMean,satPlantMean,huePlantMean,Anthocyanin_OD_530_nm",
-                "--target",
-                "Anthocyanin_OD_530_nm"
+                "create",
+                "--rgb",
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"

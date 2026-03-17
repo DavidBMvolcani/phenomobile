@@ -144,7 +144,8 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-DATA/
+RAW_DATA/
+pickled_objects/
 outputs/
 images/
 *.png

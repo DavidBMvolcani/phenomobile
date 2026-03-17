@@ -16,7 +16,7 @@ from scipy.ndimage import uniform_filter,median_filter,gaussian_filter
 import cv2
 
 
-class thermal_image:
+class ThermalImage:
     
     # Constructor method, called when a new object is created
     def __init__(self,img_name,img_path,FlirImageExtractor_path):

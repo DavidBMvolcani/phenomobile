@@ -6,10 +6,9 @@ from pathlib import Path
 from core.datasets_merge.merge_parameter_ds_with_ref_ds import MergeParameterDsWithRefDs
 
 
-class merge_lettuce_dataset(MergeParameterDsWithRefDs):
+class MergeLettuceDataset(MergeParameterDsWithRefDs):
     """
-    Lettuce-specific dataset class that inherits from dataset_creation.
-    Implements lettuce dataset merging strategies.
+    Lettuce-specific dataset class that inherits from datasets.lettuce_dataset merging strategies.
     """
     
     def __init__(self,dataset_folder):

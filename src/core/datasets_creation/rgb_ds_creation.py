@@ -9,9 +9,10 @@ import cv2
 import pandas as pd
 from spectral import *
 import spectral as sp
+import pickle
 
 # my files
-from image_processing.rgb_image import rgb_image
+from image_processing.rgb_image import RgbImage
 from core.datasets_creation.dataset_creation import DatasetCreation
 
 class RgbDsCreation (DatasetCreation):
@@ -50,6 +51,16 @@ class RgbDsCreation (DatasetCreation):
         self.server_date_dir_name=server_date_dir_name
         self.data_source=data_source
         self.config=config
+
+        #check if pickle mask is the method to get the mask
+        rgb_params=self.config.get("RGB_dataset_creation_parameters", {})
+        mask_config=rgb_params.get("mask_computation_method", {})
+        method = mask_config.get("method")
+        if method =='pickle_masks':
+            #check if pickle mask path is provided
+            if self.config.get('pickle_mask_path', None) is None:
+                raise ValueError("pickle_mask_path must be provided")
+           
     
     def create_dataset(self):
         if self.data_source == "server":
@@ -58,52 +69,104 @@ class RgbDsCreation (DatasetCreation):
             return self._create_dataset_from_local()
     
 
-    def _compute_hsv_values(self,img_path, bb_df, bb_df_idx):
+    def get_pickle_df(self, images_date):
+        pickle_mask_path = self.config.get('pickle_mask_path', None)
+        if pickle_mask_path is None:
+            raise ValueError("pickle_mask_path must be provided")
+        pickle_folder=pickle_mask_path
+        
+        if images_date is None:
+            raise ValueError("the date of the images must be provided")
+        pickle_files_names= os.listdir(pickle_folder)
+        pickle_match_lst=[f for f in pickle_files_names if images_date in f]
+        if len(pickle_match_lst)==0:
+            raise ValueError("No pickle file found in the pickle mask folder")
+        elif len(pickle_match_lst)>1:
+            raise ValueError("Multiple pickle files found in the pickle mask folder")
+        
+        pickle_file_name=pickle_match_lst[0]
+        self.logger.info(f"Loading full pickle file: {pickle_file_name}")
+        full_pickle_df= pd.read_pickle(os.path.join(
+            pickle_folder, pickle_file_name))
+        return full_pickle_df
+    
+    def _compute_mask_from_pickle(self,bb_df, full_pickle_df,bb_df_idx):
+        #check that the row in bb_df and pickle file match
+        row_bb_df = bb_df.loc[bb_df_idx]
+        row_pickle_df = full_pickle_df.loc[bb_df_idx]
+        row_pickle_df_without_mask = row_pickle_df.drop('mask')
+
+        try:
+            assert row_bb_df.equals(row_pickle_df_without_mask), "Content of bb_df and pickle file do not match"
+        except AssertionError as e:
+            self.logger.error(f"Error: {e}")
+            self.logger.error(f"Row in bb_df: {row_bb_df}")
+            self.logger.error(f"Row in pickle file: {row_pickle_df_without_mask}")
+            raise e
+
+        #load mask
+        pickle_obj = row_pickle_df['mask']
+        mask = pickle.loads(pickle_obj)
+        return mask
+
+
+    def _compute_hsv_values(self,img_path, bb_df, bb_df_idx, images_date, mask=None,res_df=None):
         """
         Compute HSV values for each bounding box in the dataframe.
         
         Args:
             img_path: Path to the image file
             bb_df: DataFrame containing bounding box information
-            idx: Index of the bounding box in the dataframe
-            
+            bb_df_idx: Index of the bounding box in the dataframe
+            images_date: Date of the images
+            mask: Optional mask to use for the bounding box
+            res_df: DataFrame to append the results to
         Returns:
             DataFrame with added HSV columns
         """
+
+        
         try:
             
-
             index= bb_df_idx
             img_bgr=cv2.imread(img_path)
             if img_bgr is None:
                 self.logger.error(f"Failed to load image: {img_path}")
-                return bb_df
+                return None
 
             #create rgb_image object
-            rgb_img=rgb_image(img_bgr,bb_df,index,self.config)
+            rgb_img=RgbImage(
+                img_bgr=img_bgr,
+                bb_df=bb_df,
+                df_index=bb_df_idx,
+                config=self.config,
+                pickle_mask=mask,
+                bb_date=images_date,
+            )
 
             #compute hsv values
             hm,sm,vm=rgb_img.get_masked_hsv_obj_means()
             hstd,sstd,vstd=rgb_img.get_masked_hsv_obj_stds()
             hmed,smed,vmed=rgb_img.get_masked_hsv_obj_medians()
 
+       
 
             #save hsv values 
-            bb_df.at[index,'huePlantMean']=hm
-            bb_df.at[index,'satPlantMean']=sm
-            bb_df.at[index,'valPlantMean']=vm
-            bb_df.at[index,'huePlantStd']=hstd
-            bb_df.at[index,'satPlantStd']=sstd
-            bb_df.at[index,'valPlantStd']=vstd
-            bb_df.at[index,'huePlantMedian']=hmed
-            bb_df.at[index,'satPlantMedian']=smed
-            bb_df.at[index,'valPlantMedian']=vmed
+            res_df.at[index,'huePlantMean']=hm
+            res_df.at[index,'satPlantMean']=sm
+            res_df.at[index,'valPlantMean']=vm
+            res_df.at[index,'huePlantStd']=hstd
+            res_df.at[index,'satPlantStd']=sstd
+            res_df.at[index,'valPlantStd']=vstd
+            res_df.at[index,'huePlantMedian']=hmed
+            res_df.at[index,'satPlantMedian']=smed
+            res_df.at[index,'valPlantMedian']=vmed
         
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred: {e}")
+            self.logger.error(f"An unexpected error occurred while computing HSV values: {e}")
             raise
         
-        return bb_df
+        return res_df
     
     '''
     Tree diagram of the rgb folder in the server
@@ -139,7 +202,11 @@ class RgbDsCreation (DatasetCreation):
             local_rgb_folder_path = Path(self.home_dir) / self.download_folder / 'local_rgb_folder'     
             os.makedirs(local_rgb_folder_path, exist_ok=True)
             
+            #load pickle file
+            self.full_pickle_df = self.get_pickle_df(self.server_date_dir_name)
+            
 
+            res_df = bb_df.copy()
             #iterate over the images and compute hsv values
             imgs_names=bb_df['image_name'].values.tolist()
             for i in range(len(imgs_names)):
@@ -149,21 +216,28 @@ class RgbDsCreation (DatasetCreation):
                 img_path = remote_files_path / img_name
 
                 copyfile(img_path, local_rgb_folder_path / img_name)
-                bb_df=self._compute_hsv_values(local_rgb_folder_path / img_name, bb_df, idx)
+                image_dates=self.server_date_dir_name
+                rgb_params=self.config.get("RGB_dataset_creation_parameters", {})
+                if rgb_params.get("mask_computation_method", {}).get("method") == 'pickle_masks': 
+                    mask=self._compute_mask_from_pickle(bb_df, self.full_pickle_df, idx)
+                    res_df=self._compute_hsv_values(img_path, bb_df, idx, image_dates, mask, res_df)
+                else:
+                    res_df=self._compute_hsv_values(img_path, bb_df, idx, image_dates, None, res_df) 
+
                 
         except Exception as e:
-                    self.logger.error(f"An unexpected error occurred: {e}")
-                    self.logger.error(e.__traceback__())
+            self.logger.error(f"An unexpected error occurred while creating RGB dataset from server: {e}")
+            self.logger.error(e.__traceback__())
         finally:
             self.logger.info("Saving RGB dataset to CSV...")
-            self.save_rgb_ds_to_csv(bb_df)
+            self.save_rgb_ds_to_csv(res_df, img_folder_name)
             # Reset the connection cache if needed, especially in scripts
             smbclient.reset_connection_cache()
             self.logger.info("SMB connection cache reset.") 
             shutil.rmtree(local_rgb_folder_path)
             self.logger.info(f"Local RGB folder removed: {local_rgb_folder_path}")
             self.logger.info("RGB dataset creation completed successfully.")
-            self.rgb_ds = bb_df
+            self.rgb_ds = res_df
             return self.rgb_ds
 
     '''
@@ -187,34 +261,41 @@ class RgbDsCreation (DatasetCreation):
         self.rgb_ds = pd.DataFrame()
 
         for img_folder_name in folders:
+            images_date=img_folder_name # the convention is that the folder name is the date
             self.logger.info(f"Processing image folder: {img_folder_name}")
             images=os.listdir(f"{rgb_imgs_root_path}/{img_folder_name}/images")
             bb_df = pd.read_csv(f"{rgb_imgs_root_path}/{img_folder_name}/{self.annotation_file_name}")
 
-
+            #load pickle file
+            self.full_pickle_df = self.get_pickle_df(images_date)
+            
+            res_df = bb_df.copy()
             for i in range(len(images)):
                 img_name= images[i]
-
                 indices = bb_df.index[bb_df['image_name'] == img_name].tolist()
-
                 if len(indices) > 0:
                    idx=bb_df.loc[bb_df['image_name'] == img_name].index.item()
                    img_path = rgb_imgs_root_path / img_folder_name / "images" / img_name
-                   bb_df=self._compute_hsv_values(img_path, bb_df, idx)
+                   rgb_params=self.config.get("RGB_dataset_creation_parameters", {})
+                   if rgb_params.get("mask_computation_method", {}).get("method") == 'pickle_masks':
+                      
+                       mask=self._compute_mask_from_pickle(bb_df, self.full_pickle_df, idx)
+                       res_df = self._compute_hsv_values(img_path, bb_df, idx, images_date, mask, res_df)
+                   else:
+                       res_df = self._compute_hsv_values(img_path, bb_df, idx, images_date, None, res_df)
                 else:
                    self.logger.warning(f"Image name {img_name} does not exist in the dataframe for folder {img_folder_name}.")
-
                      
-            current_bb_df = bb_df.copy()
+            current_img_res_df = res_df.copy()
 
             if len(self.rgb_ds) == 0:
-                self.rgb_ds = current_bb_df
+                self.rgb_ds = current_img_res_df
             else:
-                self.rgb_ds = pd.concat([self.rgb_ds, current_bb_df], ignore_index=True)
+                self.rgb_ds = pd.concat([self.rgb_ds, current_img_res_df], ignore_index=True)
                 
             # Save RGB dataset to CSV
             self.logger.info("Saving RGB dataset to CSV...")
-            self.save_rgb_ds_to_csv(current_bb_df,img_folder_name)
+            self.save_rgb_ds_to_csv(current_img_res_df, img_folder_name)
             self.logger.info("RGB dataset creation completed successfully.")
             
         return self.rgb_ds

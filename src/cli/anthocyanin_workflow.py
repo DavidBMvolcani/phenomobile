@@ -7,7 +7,7 @@ functionality.
 """
 
 from .workflows import MLTrainingWorkflow, DatasetMergeWorkflow, PlottingWorkflow
-from ml.training import training as TrainingClass
+from ml.training import Training as TrainingClass
 from utils.config import ConfigManager
 from typing import List, Dict
 import pandas as pd
@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 from utils.logger import setup_logger
 from core.datasets_merge.merge_parameter_ds_with_ref_ds import MergeParameterDsWithRefDs
-from core.datasets_merge.merge_lettuce_dataset import merge_lettuce_dataset
+from core.datasets_merge.merge_lettuce_dataset import MergeLettuceDataset
 
 from plotting.anthocyanin_plots import AnthocyaninPlot
 
@@ -39,7 +39,7 @@ class AnthocyaninDatasetMergeWorkflow(DatasetMergeWorkflow):
         ref_dataset = self.config.get_dataset_path(args.get('ref_dataset'))
         
         # Create dataset merger
-        merger = merge_lettuce_dataset(dataset_folder=self.config.get('datasets_path'))
+        merger = MergeLettuceDataset(dataset_folder=self.config.get('datasets_path'))
         
         # Merge datasets and save it in the datasets folder
         merger.merge_datasets(
@@ -254,11 +254,7 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
         
         # Close the plot to free memory
         plt.close()
-
-       
-        
-       
-
+                    
 class AnthocyaninPlottingWorkflow(PlottingWorkflow):
     def __init__(self, config: ConfigManager):
         super().__init__(config)

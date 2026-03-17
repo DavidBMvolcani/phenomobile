@@ -9,7 +9,7 @@ from spectral import *
 import spectral as sp
 
 # my files
-from image_processing.thermal_image import thermal_image
+from image_processing.thermal_image import ThermalImage
 from core.datasets_creation.dataset_creation import DatasetCreation
 
   # PARAMETERS:
@@ -117,7 +117,7 @@ class ThermalDsCreation(DatasetCreation):
                 ###################
                 
                 # create object of thermal image and df of parameters for all the images
-                th_img=thermal_image.thermal_image(img_name,local_img_path,self.FlirImageExtractor_path)
+                th_img=ThermalImage(img_name,local_img_path,self.FlirImageExtractor_path)
                 self.thermal_df=th_img.compute_Theraml_parameters(self.thermal_df,img_name)
                 
                 #delete the local image

@@ -11,14 +11,15 @@ import numpy as np
 from sklearn.cluster import KMeans
 import pdb
 
-class image_processing:
+class ImageProcessing:
 
     # PARAMETERS:
     # img_num : the number of the image
     def __init__(self,binary_img,img_num,
                 annot_path,rotate=True):
-        self.img_num=img_num
+       
         self.binary_img=binary_img
+        self.img_num=img_num
         img_erosion=self.remove_noise()
         self.num_of_labels=self.compute_num_of_labels(annot_path)
         self.labels_assignment(annot_path,rotate=True)

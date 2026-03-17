@@ -1,45 +1,85 @@
 {
   "metadata": {
-    "project_name": "Anthocyanin_BENI_ATAROT"
+        "project_name": "Anthocyanin_BENI_ATAROT"
   },
-  "parameters": {
-    "target": "Anthocyanin",
-    "column_to_filter_by": "Illumination",
-    "group_by_col": "catalog id",
-    "_comment": {
-      "group_by_col": [
-        "the group_by_col is column name in the reference dataset",
-        "use for merge the parameters dataset with the reference datasets"
-      ]
-    },
-    "kind_of_merged": "as_it",
-    "_comment2": {
-      "kind_of_merged": "as_it or sample_params"
-    },
-    "split_dataset_to_train_and_test": false,
-    "test_size": 0.2
-  },
+  "parameters_comment":{
+    "description": [
+      "this is the parameters configuration",
+      "for the training and merge datasets"
+    ],
+    "target": "the target variable to predict",
+    "column_to_filter_by": "the column to filter by",
+    "group_by_col": [
+                "the group_by_col is column name in the reference dataset",
+                "use for merge the parameters dataset with the reference datasets"
+              ],
+      "kind_of_merged":[
+        "the kind of merged dataset (as_it or sample_params)",
+        "sample_params is not relveant in this project"
+      ],
+      "split_dataset_to_train_and_test": "split the dataset to train and test",
+      "test_size": "the size of the test dataset"
+      },
+      "parameters": {
+              "target": "Anthocyanin",
+              "column_to_filter_by": "Illumination",
+              "group_by_col": "catalog id",
+              "kind_of_merged": "as_it",
+              "split_dataset_to_train_and_test": false,
+              "test_size": 0.2
+      },
   "experiment_settings": {
-    "ANNOTATION_FILE": "bounding_boxes_BENI_ATAROT.csv",
-    "SPLIT_IMAGE_TO_OBJECTS": true,
-    "_comment": "in the office computer the dataset folder is datasets/BneiAtarot ",
-    "dataset_folder": "DATA"
+      "dataset_folder": "datasets/BneiAtarot"
   },
   "categories": {
-    "RED_white_blue_led_ids": ["R1", "R2", "R3", "R4", "R5"],
-    "GREEN_white_blue_led_ids": ["G1", "G2", "G3", "G4", "G5"],
-    "RED_white_led_ids": ["R6", "R7", "R8", "R9", "R10"],
-    "GREEN_white_led_ids": ["G6", "G7", "G8", "G9", "G10"],
-    "RED_Shade_ids": ["R11", "R12", "R13", "R14", "R15"],
-    "GREEN_Shade_ids": ["G11", "G12", "G13", "G14", "G15"],
-    "RED_Control_ids": ["C1", "C2", "C3", "C4", "C5"],
-    "GREEN_Control_ids": ["C6", "C7", "C8", "C9", "C10"]
-  },
-  "_mask_computation_comment": [
-    "mask computation configuration used to create the mask of the object in rgb images",
-    "the choices are: hsv_threshold, object_contours"
+        "RED_white_blue_led_ids": ["R1", "R2", "R3", "R4", "R5"],
+        "GREEN_white_blue_led_ids": ["G1", "G2", "G3", "G4", "G5"],
+        "RED_white_led_ids": ["R6", "R7", "R8", "R9", "R10"],
+        "GREEN_white_led_ids": ["G6", "G7", "G8", "G9", "G10"],
+        "RED_Shade_ids": ["R11", "R12", "R13", "R14", "R15"],
+        "GREEN_Shade_ids": ["G11", "G12", "G13", "G14", "G15"],
+        "RED_Control_ids": ["C1", "C2", "C3", "C4", "C5"],
+        "GREEN_Control_ids": ["C6", "C7", "C8", "C9", "C10"]
+      },
+      "_categories_comment": [
+        "categories configuration used to group the images by their illumination conditions",
+        "the keys are the names of the categories",
+        "the values are the list of the illumination conditions"
+      ],
+  "dataset_creation_parameters_comment": [ 
+    "there are several parameters that can be used to create the datasets",
+    "from different sources: RGB, Hyperspectral"
   ],
-  "mask_computation_method": {
-    "method": "object_contours"
+  "RGB_dataset_creation_parameters": {
+     "ANNOTATION_FILE": "bounding_boxes_BENI_ATAROT.csv",
+    "_mask_computation_comment": [
+        "mask computation configuration used to create the mask of the object in rgb images",
+        "the choices are: hsv_threshold, object_contours,pickle_masks",
+        "The first methods are computed on execuation time",
+        "but regarding to pickle_masks, it is a precomputed and saved as a pickle file",
+        "so if you chosse this method, you need to provide the path to the pickle file"
+      ],
+    "mask_computation_method": {
+        "method": "pickle_masks"
+    },
+    "pickle_mask_path": "pickled_objects"
+  },
+  "HS_dataset_creation_parameters": {
+    "ROTATE_IMAGE": true,
+    "ANNOTATION_FILE": "bounding_boxes_BENI_ATAROT.csv",
+    "SPLIT_IMAGE_TO_OBJECTS": true,
+    "_object_filter_method_comment": [
+      "object filter method configuration used to filter the objects in the hyperspectral images",
+      "the choices are: by_ndvi, by_hsv",
+      "by_ndvi: filter the objects by their ndvi value",
+      "by_hsv: filter the objects by their hsv values"
+    ],
+    "object_filter_method": "by_ndvi",
+      "ndvi_threshold": 0.6,
+      "hsv_filter_thresholds": {
+          "hue_threshold": null,
+          "saturation_threshold": null,
+          "value_threshold": null
+      }
   }
 }

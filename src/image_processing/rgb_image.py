@@ -13,8 +13,9 @@ from scipy.signal import find_peaks
 from scipy.stats import gaussian_kde
 from scipy import stats
 
+import pickle
 
-class rgb_image:
+class RgbImage:
 
      # PARAMETERS:
     #     - img_bgr : img_bgr image 
@@ -25,26 +26,40 @@ class rgb_image:
     #          - bbox_width, 
     #          - bbox_height
     #     - df_index: the index of the image in bb_df
-    #     - config : project configuration used to set the strategy for computing the mask of the object
+    #     - config : project configuration used to set
+    #                the strategy for computing the mask of the object
+    #    - pickle_mask: mask computed using pickle object
+    #    - bb_date : the date of the images (used to match with the pickle mask file)
     def __init__(self,
             img_bgr=None,
             bb_df=None,
             df_index=None,
-            config=None):
-        
-        self.bb_df=bb_df
-        self.df_index=df_index
-        self.config=config
+            config=None,
+            pickle_mask=None,
+            bb_date=None):
 
-        if bb_df is None or df_index is None:
-            raise ValueError("bb_df and df_index must be provided")
+
+        self.config=config
+        self.pickle_mask=pickle_mask
+        self.bb_df=bb_df
+
+        if bb_df is None:
+            raise ValueError("bb_df must be provided")
+
+        if df_index is None:
+            raise ValueError("df_index must be provided")
+
+        self.df_index=df_index
+            
+
+       
         if img_bgr is None:
             raise ValueError("img_bgr must be provided")
 
-        if ('bbox_x' not in bb_df.columns or \
-            'bbox_y' not in bb_df.columns or \
-            'bbox_width' not in bb_df.columns or \
-            'bbox_height' not in bb_df.columns):
+        if ('bbox_x' not in self.bb_df.columns or \
+            'bbox_y' not in self.bb_df.columns or \
+            'bbox_width' not in self.bb_df.columns or \
+            'bbox_height' not in self.bb_df.columns):
             raise ValueError("bb_df must include the fields: bbox_x, bbox_y, bbox_width, bbox_height")
         
         self.img_rgb=cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -58,9 +73,9 @@ class rgb_image:
         if mask is not None:
             self.mask=mask
 
-        self.masked_img=self.get_masked_img()
+        
         # compute hsv values of the  masked image
-        self.compute_hsv_values(self.masked_img)
+        self.compute_hsv_values()
         
 
     def compute_croped_img(self):
@@ -72,32 +87,39 @@ class rgb_image:
         cropped_image=self.img_rgb[y1:y2,x1:x2]
         return cropped_image
 
-    def compute_hsv_values(self,masked_img,plot=False):
-        hsv_img = rgb2hsv(masked_img)
+    def compute_hsv_values(self,plot=False):
+        
+        img = self.img_rgb.copy()
+        hsv_img = rgb2hsv(img)
         hue_img = hsv_img[:, :, 0]
         saturation_img = hsv_img[:, :, 1]
         value_img = hsv_img[:, :, 2]
         if plot:
             self.plot_hsv_images()
         #mask the hsv images
-        self.masked_hue = hue_img[hue_img > 0]
-        self.masked_saturation = saturation_img[saturation_img > 0]
-        self.masked_value = value_img[value_img > 0]
+        mask=self.mask
+        self.masked_hue = hue_img[mask == 1]
+        self.masked_saturation = saturation_img[mask == 1]
+        self.masked_value = value_img[mask == 1]
         
 
+    # here we compute the mask of the object by the method specified in the config
     def compute_mask(self):
         if self.config is None:
             raise ValueError("config for mask computation must be provided")
-        mask_config=self.config.get("mask_computation_method", {})
-        method = mask_config.get("method", "hsv_threshold")
+        rgb_params=self.config.get("RGB_dataset_creation_parameters", {})
+        mask_config=rgb_params.get("mask_computation_method", {})
+        method = mask_config.get("method")
         if method == "hsv_threshold":
             self.compute_hsv_threshold_mask()
         elif method == "object_contours":
             mask=self.compute_object_contours_mask()
-            return mask
+        elif method == "pickle_masks":
+            mask=self.get_pickle_mask()
         else:
             raise ValueError(f"Unknown mask computation method: {method}")
-        return None
+
+        return mask
 
     def compute_hsv_threshold_mask(self):
         raise NotImplementedError("compute_hsv_threshold_mask method is not implemented yet")
@@ -189,24 +211,35 @@ class rgb_image:
     def get_masked_hsv_obj_medians(self):
        
        return np.median(self.masked_hue),np.median(self.masked_saturation),np.median(self.masked_value)
+
+    
+    # check if masks from pickle file exist and load them
+    def get_pickle_mask(self):
+        df_index=self.df_index
+
+        # Load pickle file
+        mask=self.pickle_mask
         
-    def get_masked_img(self):
-        if self.mask is None:
-            raise ValueError("Mask is not computed .")
-
-        mask=self.mask
-        # 1. Ensure the mask is 8-bit (OpenCV requires CV_8U for masks)
-        mask = mask.astype(np.uint8)
-
-        # 2. Force the mask to the exact size of the image if it's off
-        if mask.shape[:2] != self.cropped_img.shape[:2]:
-            #print(f"Resizing mask from {mask.shape} to {cropped_img.shape[:2]}")
-            mask = cv2.resize(mask, (self.cropped_img.shape[1], self.cropped_img.shape[0]), interpolation=cv2.INTER_NEAREST)
-
-        # 3. Now apply the bitwise_and
-        mask_img_color = cv2.bitwise_and(self.cropped_img, self.cropped_img, mask=mask)
-
-        return mask_img_color
+        # Ensure mask is binary (True/False) and proper numpy array
+        if mask is None:
+            raise ValueError("Pickle mask is None")
+            
+        # Convert to numpy array if not already
+        if not isinstance(mask, np.ndarray):
+            mask = np.array(mask)
+            
+        # Ensure binary values (0, 1) for True/False mask
+        if mask.dtype != np.uint8:
+            mask = mask.astype(np.uint8)
+            
+        # Validate mask contains only binary values
+        unique_values = np.unique(mask)
+        if not np.all(np.isin(unique_values, [0, 1])):
+            self.logger.warning(f"Mask contains non-binary values: {unique_values}")
+            # Convert to binary by thresholding
+            mask = (mask > 0).astype(np.uint8)
+            
+        return mask
         
     ##########
     #

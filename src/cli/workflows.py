@@ -25,6 +25,8 @@ from core.datasets_creation.rgb_ds_creation import RgbDsCreation
 
 from abc import ABC, abstractmethod
 
+from dotenv import load_dotenv
+
 
 class DatasetCreationWorkflow:
     """Workflow for creating datasets from raw data."""
@@ -74,18 +76,18 @@ class DatasetCreationWorkflow:
         
         home_dir = self.config.get('home_path')
         paths = self.config.get('paths', {})
-        download_folder = paths.get('download_folder')
+        download_folder = self.config.get('download_path')
         dataset_folder = self.config.get('datasets_path')
         self.dataset_folder = dataset_folder
         formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        arg_create_ndi_table = args.get('create_ndi_table')
+        self.COMPUTE_NDI = args.get('create_ndi_table')
+        self.ndi_table_directory_path=self.config.get('ndi_table_directory_path',{})
         FlirImageExtractor_path = self.config.get('FlirImageExtractor_path')
 
         # Get data source
-        self.data_source = self.config.get('data_source')
+        data_src=self.config.get('data_source')
+        self.data_source = data_src['type']
         if self.data_source == 'server':
-            if not self.config.get('env_file'):
-                raise ValueError("ENV_FILE must be True when data_source is 'server'")
             self.logger.info("Loading environment variables from .env file")
             self.setup_paths_from_env_file()
         else:
@@ -108,13 +110,17 @@ class DatasetCreationWorkflow:
                 map_hs_and_th_ds=map_hs_and_th_ds,
                 annotation_file_name=HS_ANNOTATION_FILE_NAME,
                 split_image_to_objects=SPLIT,
-                rotate_image=ROTATE_IMAGE,
                 home_dir=home_dir,
+                rotate_image=ROTATE_IMAGE,
+                
                 download_folder=download_folder,
+                dataset_folder=self.dataset_folder,
                 formatted_datetime=formatted_datetime,
+
                 data_source=self.data_source,
                 ndi_tuple=ndi_tuple,
-                COMPUTE_NDI=arg_create_ndi_table,
+                COMPUTE_NDI=self.COMPUTE_NDI,
+
                 SMB_USERNAME=self.SMB_USERNAME,
                 SMB_PASSWORD=self.SMB_PASSWORD,
                 SMB_SERVER=self.SMB_SERVER,
@@ -122,6 +128,8 @@ class DatasetCreationWorkflow:
                 RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
                 YEAR_DIR_NAME=self.server_year_dir_name,
                 DATE_DIR_NAME=self.server_date_dir_name,
+                ndi_table_directory_path=self.ndi_table_directory_path,
+
                 object_filter_method=HS_object_filter_method,
                 ndvi_threshold=HS_ndvi_threshold,
                 hsv_filter_thresholds=HS_hsv_filter_thresholds
@@ -134,6 +142,7 @@ class DatasetCreationWorkflow:
                 map_hs_and_th_ds=map_hs_and_th_ds,
                 home_dir=home_dir,
                 download_folder=download_folder,
+                dataset_folder=self.dataset_folder,
                 formatted_datetime=formatted_datetime,
                 data_source=self.data_source,
                 FlirImageExtractor_path=FlirImageExtractor_path,
@@ -152,10 +161,10 @@ class DatasetCreationWorkflow:
                 logger=self.logger,
                 home_dir=home_dir,
                 download_folder=download_folder,
+                dataset_folder=self.dataset_folder,
                 formatted_datetime=formatted_datetime,
                 data_source=self.data_source,
                 annotation_file_name=RGB_ANNOTATION_FILE_NAME,
-                dataset_folder=self.dataset_folder,
                 SMB_USERNAME=self.SMB_USERNAME,
                 SMB_PASSWORD=self.SMB_PASSWORD,
                 SMB_SERVER=self.SMB_SERVER,

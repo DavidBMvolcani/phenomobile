@@ -1,11 +1,11 @@
 {
   "paths": {
-    "download_folder": "images",
+    "download_folder": "downloads",
     "home_directory_name": "phenomobile",
     "FlirImageExtractor_path": null
   },
   "data_source": {
-    "type": "local",
+    "type": "server",
     "_comment": {
       "type": "Default data source is server or local"
     },

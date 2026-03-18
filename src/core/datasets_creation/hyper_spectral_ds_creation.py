@@ -26,28 +26,43 @@ class HyperSpectralDsCreation(DatasetCreation):
         home_dir,
         rotate_image,
         download_folder,
+        dataset_folder,
         formatted_datetime,
         data_source,
         ndi_tuple=None,
         COMPUTE_NDI=False,
+        ndi_table_directory_path=None,
+
         SMB_USERNAME=None,
         SMB_PASSWORD=None,
         SMB_SERVER=None,
         SMB_SHARE=None,
         RAW_DATA_FOLDER=None,
         YEAR_DIR_NAME=None,
-        DATE_DIR_NAME=None):
+        DATE_DIR_NAME=None,
+        
+        object_filter_method=None,
+        ndvi_threshold=None,
+        hsv_filter_thresholds=None,
+
+        ):
+       # self.dataset_folder
 
         self.logger = logger
         self.home_dir = home_dir
         self.download_folder = download_folder
+        self.dataset_folder = dataset_folder
         self.formatted_datetime = formatted_datetime
         self.annotation_file_name = annotation_file_name
         self.split_image_to_objects = split_image_to_objects
         self.rotate_image = rotate_image
         self.COMPUTE_NDI = COMPUTE_NDI
-
+        self.ndi_table_directory_path=ndi_table_directory_path
+        self.object_filter_method = object_filter_method
+        self.ndvi_threshold = ndvi_threshold
+        self.hsv_filter_thresholds = hsv_filter_thresholds
         self.data_source = data_source
+
         if self.data_source=='server':
             self.SMB_USERNAME = SMB_USERNAME
             self.SMB_PASSWORD = SMB_PASSWORD
@@ -76,11 +91,13 @@ class HyperSpectralDsCreation(DatasetCreation):
     def create_dataset(self):
 
         if self.data_source == 'server':
-            self._create_dataset_from_server()
+            spectral_img_df,gray_for_HS_imgs = self._create_dataset_from_server()
         elif self.data_source == 'local':
-            self._create_dataset_from_local()
+            spectral_img_df,gray_for_HS_imgs = self._create_dataset_from_local()
         else:
             raise ValueError("data_source must be either 'server' or 'local'")
+        
+        return spectral_img_df,gray_for_HS_imgs
 
     #######
     '''
@@ -102,7 +119,7 @@ class HyperSpectralDsCreation(DatasetCreation):
             # Construct the full remote path
             remote_dir_path = f"\\\\{self.SMB_SERVER}\\{self.SMB_SHARE}\\{self.RAW_DATA_FOLDER}"
             
-            # read a file from a path in the server 
+            # read a file from a path in server
             Hs='HS'
             HS_dir=f"{remote_dir_path}\\{self.YEAR_DIR_NAME}\\{self.DATE_DIR_NAME}\\{Hs}"
             if self.annotation_file_name is not None:
@@ -112,27 +129,53 @@ class HyperSpectralDsCreation(DatasetCreation):
                 local_annotation_folder=f'{self.download_folder}/annotation_folder'
                 os.makedirs(local_annotation_folder, exist_ok=True)
                 local_annotation_file_path=f'{local_annotation_folder}/{self.annotation_file_name}'
-
-                # store the annotation remote file in local folder
-                smbclient.register_session(
-                    server=self.SMB_SERVER,
-                    username=self.SMB_USERNAME,
-                    password=self.SMB_PASSWORD,
-                )
-                path = fr"\\{annotation_path}"
-                with smbclient.open_file(path, mode="rb") as f:
-                    annot_df = pd.read_csv(f)
-                annot_df.to_csv(local_annotation_file_path)
+                
+                # store annotation remote file in local folder
+                try:
+                    self.logger.info(f"Connecting to SMB server: {self.SMB_SERVER}")
+                    smbclient.register_session(
+                        server=self.SMB_SERVER,
+                        username=self.SMB_USERNAME,
+                        password=self.SMB_PASSWORD,
+                    )
+                    self.logger.info(f"Reading annotation file from: {annotation_path}")
+                    with smbclient.open_file(annotation_path, mode="rb") as f:
+                        annot_df = pd.read_csv(f)
+                    self.logger.info(f"Saving annotation file to: {local_annotation_file_path}")
+                    annot_df.to_csv(local_annotation_file_path)
+                    self.logger.info("Annotation file downloaded successfully")
+                except Exception as e:
+                    self.logger.error(f"Failed to download annotation file: {e}")
+                    self.logger.error(f"Annotation error location: {e.__traceback__()}")
 
             #read the hs images
-            HS_img_dirs = smbclient.listdir(HS_dir)
+            try:
+                self.logger.info(f"Listing HS image directories in: {HS_dir}")
+                HS_img_dirs = smbclient.listdir(HS_dir)
+                self.logger.info(f"Found {len(HS_img_dirs)} HS image directories")
+            except Exception as e:
+                self.logger.error(f"Failed to list HS directories: {e}")
+                self.logger.error(f"HS listing error location: {e.__traceback__()}")
+                return
+            
+            if not HS_img_dirs:
+                self.logger.error("No HS image directories found")
+                return
+            
             for idx,img_dir in enumerate(HS_img_dirs):
-                img_name=img_dir
-                HS_img_dir=HS_dir+f'\\{img_dir}'
-                # enter to the directory of the calibrated image (cal)
-                cal="results"
-                cal_HS_img_dir=HS_img_dir+f'\\{cal}'
-                hdr_file_name="REFLECTANCE_"+img_dir+".hdr"
+                try:
+                    img_name=img_dir
+                    HS_img_dir=HS_dir+f'\\{img_dir}'
+                    self.logger.info(f"Processing HS directory {idx+1}/{len(HS_img_dirs)}: {img_dir}")
+                    
+                    # enter to directory of calibrated image (cal)
+                    cal="results"
+                    cal_HS_img_dir=HS_img_dir+f'\\{cal}'
+                    hdr_file_name="REFLECTANCE_"+img_dir+".hdr"
+                except Exception as e:
+                    self.logger.error(f"Failed to process HS directory {img_dir}: {e}")
+                    self.logger.error(f"HS directory error location: {e.__traceback__()}")
+                    continue
                 
                 self.logger.info(f"Attempting to read from folder: {cal_HS_img_dir}")
 
@@ -176,14 +219,18 @@ class HyperSpectralDsCreation(DatasetCreation):
                     RGB_bands,
                     img_num,
                     ROTATE= self.rotate_image,
+                    ndi_tuple=self.ndi_tuple,
+                    create_ndi_table=self.COMPUTE_NDI,
+                    ndi_table_directory_path=self.ndi_table_directory_path,
                     ANNOTATION_PATH=local_annotation_file_path,
                     SPLIT_IMAGE_TO_OBJECTS=self.split_image_to_objects,
                     acquisition_date=ad,
                     longitude=meta['longitude'],
                     latitude=meta['latitude'],
-                    ndi_tuple=self.ndi_tuple,
-                    create_ndi_table=self.COMPUTE_NDI,
-                    ndi_table_directory_path=self.ndi_table_directory_path) 
+                    object_filter_method=self.object_filter_method,
+                    ndvi_threshold=self.ndvi_threshold,
+                    hsv_filter_thresholds=self.hsv_filter_thresholds
+                    ) 
                 #compute vegetation indices and save it in dataframe
                 self.spectral_img_df=hs_img.compute_vegeation_indices(self.spectral_img_df)
                 
@@ -191,13 +238,19 @@ class HyperSpectralDsCreation(DatasetCreation):
                 shutil.rmtree(self.download_folder+"/"+img_dir)
                 
             # delete the annotation folder
-            if self.ANNOTATION is not None: 
+            if self.annotation_file_name is not None:
                 shutil.rmtree(local_annotation_folder)
             
             
         except Exception as e:
             self.logger.error(f"An unexpected error occurred: {e}")
-            self.logger.error(e.__traceback__())
+            self.logger.error(f"Error location: {e.__traceback__}")
+            self.logger.error(f"Error type: {type(e).__name__}")
+            self.logger.error(f"Error args: {e.args}")
+            self.logger.error(f"Error in function: {sys._getframe().f_code.co_name}")
+            self.logger.error(f"Error line: {sys._getframe().f_lineno}")
+            self.logger.error(f"Error file: {__file__}")
+            
         finally:
             self.logger.info("Saving hyperspectral dataset to CSV...")
             self.save_hs_ds_to_csv()
@@ -232,10 +285,10 @@ class HyperSpectralDsCreation(DatasetCreation):
 
     def save_hs_ds_to_csv(self):
         datasets_paths=self.dataset_folder
-        rmt_folder=self.RAW_DATA_FOLDER
+        rmt_folder=f'{self.RAW_DATA_FOLDER}_{self.DATE_DIR_NAME}'
         dt=self.formatted_datetime
-        self.spectral_img_df.to_csv(f"{datasets_paths}/hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}_{dt}.csv",index=False)
-        self.logger.info(f'new file created at : {datasets_paths}/hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}_{dt}.csv')
+        self.spectral_img_df.to_csv(f"{datasets_paths}/hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}.csv",index=False)
+        self.logger.info(f'new file created at : {datasets_paths}/hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}.csv')
 
       #load hyper-spectral_df and set the path to the gray images assosiated with the hs images
     def load_hs_df(self,hs_df_path,

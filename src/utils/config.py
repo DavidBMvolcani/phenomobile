@@ -84,28 +84,19 @@ class ConfigManager:
     
     def load_environment(self) -> None:
         """Load environment variables from .env file."""
-        if not self.env_file:
+        if not self.env_file or self.config.get('data_source') == 'local':
+            self.logger.info("Loading raw data for local data source")
             return
             
-        env_path = self.root_path / self.env_file
+        self.env_path = self.root_path / self.env_file
         
-        if not env_path.exists():
-            print(f"Warning: Environment file not found at {env_path}")
+        if not self.env_path.exists():
+            print(f"Warning: Environment file not found at {self.env_path}")
             print("Continuing without environment variables - no server connection available")
             return
         
-        load_dotenv(env_path)
+        load_dotenv(self.env_path)
         
-        # Check for required environment variables
-        required_vars = ['dataset_folder', 'home_directory_name']
-        missing_vars = []
-        
-        for var in required_vars:
-            if os.environ.get(var) is None:
-                missing_vars.append(var)
-        
-        if missing_vars:
-            raise ValueError(f"Missing required environment variables: {missing_vars}")
     
     def setup_paths(self) -> None:
         """Setup project paths relative to the calculated project root."""
@@ -119,7 +110,7 @@ class ConfigManager:
         
         # Get download folder with proper fallback
         paths_config = self.config.get('paths') or {}
-        download_folder = paths_config.get('download_folder', 'images')
+        download_folder = paths_config.get('download_folder', 'donwnloads')
         self.config['download_path'] = str(self.root_path / download_folder)
         
         # Outputs and Src are also relative to root

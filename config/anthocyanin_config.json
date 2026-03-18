@@ -80,6 +80,7 @@
           "hue_threshold": null,
           "saturation_threshold": null,
           "value_threshold": null
-      }
+      },
+      "ndi_table_directory_path": "ndi_tables"
   }
 }

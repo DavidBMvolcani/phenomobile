@@ -43,9 +43,6 @@ class HyperSpectralImage:
             ndi_tuple=None,
             create_ndi_table=False,
             ndi_table_directory_path=None,
-
-         
-
             ANNOTATION_PATH="",
             SPLIT_IMAGE_TO_OBJECTS=False,
             acquisition_date="",

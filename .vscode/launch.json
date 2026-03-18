@@ -10,7 +10,7 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "create",
-                "--rgb",
+                "--hs",
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"

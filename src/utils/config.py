@@ -111,6 +111,7 @@ class ConfigManager:
         # Get download folder with proper fallback
         paths_config = self.config.get('paths') or {}
         download_folder = paths_config.get('download_folder', 'donwnloads')
+        downolad_dir=os.makedirs(self.root_path / download_folder, exist_ok=True)
         self.config['download_path'] = str(self.root_path / download_folder)
         
         # Outputs and Src are also relative to root
@@ -128,6 +129,19 @@ class ConfigManager:
             self.config['pickle_mask_path'] = str(self.root_path / pickle_mask_path)
         else:
             self.config['pickle_mask_path'] = str(self.root_path / 'pickled_objects')
+
+        # get ndi tables storage method
+        self.config['ndi_storage_method']=self.config.get('save_ndi_table_as')   
+
+
+        # Get ndi table path
+        ndi_table_path = self.config.get('ndi_table_directory_path')
+        if ndi_table_path:
+            os.makedirs(self.root_path / ndi_table_path, exist_ok=True)
+            self.config['ndi_table_directory_path'] = str(self.root_path / ndi_table_path)
+        else:
+            os.makedirs(self.root_path / 'ndi_tables', exist_ok=True)
+            self.config['ndi_table_directory_path'] = str(self.root_path / 'ndi_tables')
     
     def get(self, key: str, default: Optional = None) -> Optional:
         """

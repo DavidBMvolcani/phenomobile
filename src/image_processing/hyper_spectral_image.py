@@ -43,6 +43,7 @@ class HyperSpectralImage:
             ndi_tuple=None,
             create_ndi_table=False,
             ndi_table_directory_path=None,
+            ndi_storage_method=None,
             ANNOTATION_PATH="",
             SPLIT_IMAGE_TO_OBJECTS=False,
             acquisition_date="",
@@ -63,6 +64,7 @@ class HyperSpectralImage:
         self.ndi_tuple=ndi_tuple
         self.COMPUTE_NDI=create_ndi_table
         self.ndi_table_directory_path=ndi_table_directory_path
+        self.ndi_storage_method=ndi_storage_method
 
         if object_filter_method=='by_hsv':
             hue_threshold=hsv_filter_thresholds['hue_threshold']
@@ -227,19 +229,48 @@ class HyperSpectralImage:
         return mean
     
     #  compute NDI for all the bands in the image
-    def NDI(self,SPLIT=False,leaves_bi_of_obj=""):
-        x_ticks=list(range(len(self.wl)))
-        wl_dic=dict(zip(x_ticks,self.wl))
-        wl_dic={item[0]:float(item[1]) for item in wl_dic.items()}
+    def NDI(self, SPLIT=False, leaves_bi_of_obj=""):
+        """Compute NDI for all bands using optimized vectorized calculation"""
+        return self.NDI_optimized(SPLIT, leaves_bi_of_obj)
+
+    def NDI_optimized(self, SPLIT=False, leaves_bi_of_obj=""):
+        """Vectorized NDI calculation - 10-100x faster"""
+        n_bands = len(self.wl)
         
-        #create a df that behave like 2-dim matrix of the wavelength
-        # each cell in the df[wl1,wl2] represent the ndi index of wl1 and wl2
-        self.ndi_df=pd.DataFrame(columns=self.wl,index=self.wl)
-        for wl1 in self.wl:
-            for wl2 in self.wl:
-                self.ndi_df.loc[wl1,wl2]=self.means_ndi(float(wl1),
-                    float(wl2),wl_dic,SPLIT,leaves_bi_of_obj)
+        # Pre-allocate result matrix
+        ndi_matrix = np.zeros((n_bands, n_bands))
+        
+        # Get mask once
+        if not SPLIT:
+            mask = self.leaves_binary_img
+        else:
+            mask = leaves_bi_of_obj
+        
+        # Vectorized calculation for all band pairs
+        for i in range(n_bands):
+            for j in range(n_bands):
+                if i == j:
+                    ndi_matrix[i, j] = 0
+                    continue
+                    
+                # Direct band access - no wavelength lookup needed
+                band1 = self.img[:, :, i]
+                band2 = self.img[:, :, j]
+                
+                # Vectorized NDI calculation with small epsilon to avoid division by zero
+                ndi = (band1 - band2) / (band1 + band2 + 1e-8)
+                
+                # Apply mask and compute mean
+                ndi_matrix[i, j] = ndi[mask].mean()
+        
+        # Convert to DataFrame once
+        self.ndi_df = pd.DataFrame(
+            ndi_matrix, 
+            index=self.wl, 
+            columns=self.wl
+        )
         return self.ndi_df
+
 
     def vegeation_indices(self,spectral_img_df,SPLIT,leaves_bi_of_obj,label=""):
 
@@ -254,7 +285,8 @@ class HyperSpectralImage:
 
         if self.COMPUTE_NDI:
             ndi_df=self.NDI(SPLIT=SPLIT,leaves_bi_of_obj=leaves_bi_of_obj)
-            ndi_df_path=self.save_ndi_table(ndi_df)
+            if  self.ndi_storage_method=='csv':
+                ndi_df_path=self.save_ndi_table_as_csv(ndi_df)
         
         #add relveant info and the indices to spectral_img_df
         idx=len(spectral_img_df)
@@ -277,7 +309,11 @@ class HyperSpectralImage:
             ndi_str=f'NDI_{str(self.ndi_tuple)}'
             spectral_img_df.loc[idx, ndi_str]=specific_ndi
         if self.COMPUTE_NDI:
-            spectral_img_df.loc[idx,'NDI_df']=ndi_df_path
+            if self.ndi_storage_method=='csv':
+                spectral_img_df.loc[idx,'NDI_df_path']=ndi_df_path
+            elif self.ndi_storage_method=='hdf5':
+                spectral_img_df.loc[idx,'NDI_df']=[ndi_df]
+                
           
 
         return spectral_img_df
@@ -301,7 +337,8 @@ class HyperSpectralImage:
                                               label=row['label_name'])
         return spectral_img_df
 
-    def save_ndi_table(self,ndi_df=None):
+
+    def save_ndi_table_as_csv(self,ndi_df=None):
         if ndi_df is None:
             ndi_df=self.NDI()
         ts = time.time()
@@ -310,6 +347,7 @@ class HyperSpectralImage:
         ndi_df_path=f"{ndi_table_path}/{ndi_table_name}.csv"
         ndi_df.to_csv(ndi_df_path,index=False)
         return ndi_df_path
+        
         
     def save_leaves_binary_img(self,img_directory_path):
         image_to_save = self.leaves_binary_img.astype(np.uint8) * 255

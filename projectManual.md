@@ -687,6 +687,14 @@ The splitting behavior is controlled by:
 - `ANNOTATION_FILE` - Path to bounding box CSV file
 - Rotation parameters for image orientation correction
 
+- in conclusion the following datasets created from the Raw Data:
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_17-02-38_from_BneiAtarot_20260204.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_14-44-15_from_BneiAtarot_20260128.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_14-27-44_from_BneiAtarot_20260121.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_14-02-03_from_BneiAtarot_20251229.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_13-56-57_from_BneiAtarot_20251223.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_13-08-42_from_BneiAtarot_20251209.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_12-04-47_from_BneiAtarot_20251201.csv
 
 #### 12.2.1.2. RGB
 
@@ -710,7 +718,31 @@ the datasets names that created from the Raw Data are:
 the mergeing between the parameters dataset and the reference dataset
 is enable by the "label_name" column in the parameters dataset with the same logic column in the reference dataset that called "catalog_id"( e.g :R1,G10,...)
 
+the merge enable by the cli command:
+ 
+```
+python main.py merge --params_dataset "name_of_dataset.csv" --ref_dataset "name_of_reference_dataset.csv"
+```
+for example:
+```
+python main.py merge --params_dataset "hyper_sp_imgs_dataset_created_at_2026-03-18_12-04-47_from_BneiAtarot_20251201.csv" --ref_dataset "Anthocyanin_05_12_2025.csv"
+```
+
+under the hood the an ilumnination column is added to the merged dataset defined by the project configuration file. 
+
 #### 12.2.2.1 HS: Hyper-spectral
+
+here the table of the mapping between the hyper spectral datasets and tha reference datasets:
+
+| Hyper-spectral Dataset | Reference Dataset |
+|------------------------|-------------------|
+| `hyper_sp_imgs_dataset...BneiAtarot_20251201.csv` | `Anthocyanin_05_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20251209.csv` | `Anthocyanin_09_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20251223.csv` | `Anthocyanin_25_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20251229.csv` | `Anthocyanin_31_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20260128.csv` | `Anthocyanin_29_01_2026.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20260204.csv` | `Anthocyanin_05_02_2026.csv` |
+
 
 #### 12.2.2.2 RGB: RGB
 

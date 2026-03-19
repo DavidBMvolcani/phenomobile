@@ -2,15 +2,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Debug Phenomobile Merge",
+            "name": "Python: Debug Phenomobile Anthocyanin Workflow",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "create",
-                "--hs",
+                "train",
+                "--dataset",
+                "Anthocyanin_with_hs_051225-050226.csv",
+                "--feature",
+                "ndvi_mean,Anthocyanin",
+                "--target",
+                "Anthocyanin"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"

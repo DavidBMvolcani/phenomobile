@@ -1,3 +1,8 @@
+
+##################
+##  RGB
+##################
+
 #create
 
 python main.py create --rgb
@@ -6,11 +11,15 @@ python main.py create --rgb
 # merge
 
 
-python main.py merge --params_dataset "rgb_imgs_dataset_28_01_26.csv" --ref_dataset "Anthocyanin_29-01-2026.csv"
+
  
 
 
 # train -mean
+
+
+
+
 python main.py train --dataset "Anthocyanin_with_rgb_051225-050226.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
 
 python main.py train --dataset "Anthocyanin_with_rgb_051225-050226_clean.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
@@ -31,26 +40,22 @@ python main.py train --dataset "Anthocyanin_with_rgb_051225-251225.csv" --featur
 
 
 
-#############################
 
-python main.py merge --params_dataset "rgb_imgs_dataset_03_12_25.csv" --ref_dataset "Anthocyanin_05-12-2025.csv"
-python main.py merge --params_dataset "rgb_imgs_dataset_07_12_25.csv" --ref_dataset "Anthocyanin_09-12-2025.csv"
-python main.py merge --params_dataset "rgb_imgs_dataset_16_12_25.csv" --ref_dataset "Anthocyanin_17-12-2025.csv"
-python main.py merge --params_dataset "rgb_imgs_dataset_23_12_25.csv" --ref_dataset "Anthocyanin_25-12-2025.csv"
-python main.py merge --params_dataset "rgb_imgs_dataset_25_12_25.csv" --ref_dataset "Anthocyanin_31-12-2025.csv" 
+##################
+##  HS
+##################
 
+#create
 
-#############################
-"args": [
-                "train",
-                "--dataset", "complete_ds_of_Anthocyanin_BENI_ATAROT_2025_12.csv",
-                "--features", "valPlantMean,satPlantMean,huePlantMean,Anthocyanin",
-                "--target", "Anthocyanin"
-            ],
+python main.py create --hs
 
 
-"args": [
-                "merge",
-                "--params_dataset", "rgb_imgs_dataset_03_12_25.csv",
-                "--ref_dataset", "Anthocyanin_05-12-2025.csv"
-            ],
+# merge
+
+python main.py merge --params_dataset "hyper_sp_imgs_dataset_created_at_2026-03-18_12-04-47_from_BneiAtarot_20251201.csv" --ref_dataset "Anthocyanin_05_12_2025.csv"
+
+
+# train
+
+python main.py train --dataset "Anthocyanin_with_hs_051225-050226.csv" --feature "ndvi_mean,Anthocyanin" --target  Anthocyanin 
+

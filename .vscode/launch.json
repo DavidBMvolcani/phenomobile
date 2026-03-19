@@ -9,13 +9,9 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "train",
-                "--dataset",
-                "Anthocyanin_with_hs_051225-050226.csv",
-                "--feature",
-                "ndvi_mean,Anthocyanin",
-                "--target",
-                "Anthocyanin"
+                "create",
+                "--hs",
+                "--create_ndi_table"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"

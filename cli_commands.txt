@@ -49,6 +49,8 @@ python main.py train --dataset "Anthocyanin_with_rgb_051225-251225.csv" --featur
 
 python main.py create --hs
 
+python main.py create --hs --create_ndi_table
+
 
 # merge
 
@@ -57,5 +59,5 @@ python main.py merge --params_dataset "hyper_sp_imgs_dataset_created_at_2026-03-
 
 # train
 
-python main.py train --dataset "Anthocyanin_with_hs_051225-050226.csv" --feature "ndvi_mean,Anthocyanin" --target  Anthocyanin 
+python main.py train --dataset "Anthocyanin_with_hs_051225-050226.csv" --feature "ndvi_mean,evi_mean,lai_mean,Anthocyanin" --target  Anthocyanin --filter light
 

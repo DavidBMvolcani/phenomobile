@@ -81,6 +81,13 @@
           "saturation_threshold": null,
           "value_threshold": null
       },
-      "ndi_table_directory_path": "ndi_tables"
+      "ndi_table_directory_path": "ndi_tables",
+      "save_ndi_table_as": "hdf5",
+      "_save_ndi_table_as_comment": [
+        "the choices are: csv, hdf5",
+        "csv: save the ndi table as a csv file",
+        "hdf5: save the ndi table as a hdf5 file"
+      ]
+      
   }
 }

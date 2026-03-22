@@ -225,7 +225,7 @@ class HyperSpectralImage:
         else:
             lp_ndi=ndi[leaves_bi_of_obj==True].ravel() # lp= leaves pixel
             
-        mean=lp_ndi.mean() #,lp_ndi.std(),np.median(lp_ndi)
+        mean=lp_ndi.mean() 
         return mean
     
     #  compute NDI for all the bands in the image
@@ -233,42 +233,48 @@ class HyperSpectralImage:
         """Compute NDI for all bands using optimized vectorized calculation"""
         return self.NDI_optimized(SPLIT, leaves_bi_of_obj)
 
+    
     def NDI_optimized(self, SPLIT=False, leaves_bi_of_obj=""):
-        """Vectorized NDI calculation - 10-100x faster"""
-        n_bands = len(self.wl)
+        # 1. Get the correct mask (entire image or single plant)
+        mask = leaves_bi_of_obj if SPLIT else self.leaves_binary_img
         
-        # Pre-allocate result matrix
-        ndi_matrix = np.zeros((n_bands, n_bands))
+        # 2. Fix the "Too Many Indices" error: Ensure mask is 2D Boolean
+        if hasattr(mask, 'ndim') and mask.ndim == 3:
+            mask = mask.squeeze() # (H, W, 1) -> (H, W)
+        mask = mask.astype(bool)
+
+        # Convert the SPy object to a standard NumPy array
+        img_np = self.img.asarray()
         
-        # Get mask once
-        if not SPLIT:
-            mask = self.leaves_binary_img
-        else:
-            mask = leaves_bi_of_obj
+        # 3. Extract the Mean Spectrum of the plant
+        # self.img[mask] extracts all pixels of the plant: shape (N_pixels, 204)
+        leaf_pixels = img_np[mask]
         
-        # Vectorized calculation for all band pairs
-        for i in range(n_bands):
-            for j in range(n_bands):
-                if i == j:
-                    ndi_matrix[i, j] = 0
-                    continue
-                    
-                # Direct band access - no wavelength lookup needed
-                band1 = self.img[:, :, i]
-                band2 = self.img[:, :, j]
-                
-                # Vectorized NDI calculation with small epsilon to avoid division by zero
-                ndi = (band1 - band2) / (band1 + band2 + 1e-8)
-                
-                # Apply mask and compute mean
-                ndi_matrix[i, j] = ndi[mask].mean()
+        if leaf_pixels.size == 0: # Safety check for empty objects
+            self.ndi_df=pd.DataFrame(np.zeros((204, 204)), index=self.wl, columns=self.wl)
+            return self.ndi_df
+
+        # Calculate average reflectance for all 204 bands at once
+        avg_spectrum = leaf_pixels.mean(axis=0) # Result shape: (204,)
         
-        # Convert to DataFrame once
+        # 4. Matrix Broadcasting (The speed secret)
+        # Turn (204,) into (204, 1) and (1, 204)
+        B1 = avg_spectrum.reshape(-1, 1)
+        B2 = avg_spectrum.reshape(1, -1)
+        
+        # Calculate all 41,616 NDI combinations in one giant matrix step
+        ndi_matrix = (B1 - B2) / (B1 + B2 + 1e-8)
+        
+        # 5. Clean up diagonal and return
+        np.fill_diagonal(ndi_matrix, 0)
+    
+         # Convert to DataFrame once
         self.ndi_df = pd.DataFrame(
             ndi_matrix, 
             index=self.wl, 
             columns=self.wl
         )
+
         return self.ndi_df
 
 

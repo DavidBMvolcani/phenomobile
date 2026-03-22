@@ -10,6 +10,7 @@ import pandas as pd
 from spectral import *
 import spectral as sp
 import h5py
+import time
 
 # my files
 from image_processing.hyper_spectral_image import HyperSpectralImage
@@ -79,7 +80,7 @@ class HyperSpectralDsCreation(DatasetCreation):
 
         # Initialize empty DataFrame for spectral data
         self.spectral_img_df=pd.DataFrame()
-        self.ndi_tables_df=pd.DataFrame()
+        #self.ndi_tables_df=pd.DataFrame()
        
         self.map_hs_and_th_ds = map_hs_and_th_ds
         if self.map_hs_and_th_ds:
@@ -103,68 +104,17 @@ class HyperSpectralDsCreation(DatasetCreation):
                 # prepare it to read the dataframe 
                 self.spectral_img_df['NDI_df'] = None
                 self.spectral_img_df['NDI_df'] = self.spectral_img_df['NDI_df'].astype(object)
-    ####
-    #
-    # SBM functions
-    #
-    ###
-    #region
-    def fast_smb_copytree(self, src_dir, dst_local, max_workers=4):
-        """
-        Speeds up SMB transfers by copying multiple files in parallel.
-        """
-        # 1. Ensure local directory exists
-        if not os.path.exists(dst_local):
-            os.makedirs(dst_local)
+    
 
-        # 2. Get list of files from the SMB share
-        try:
-            files = listdir(src_dir, 
-                            username=self.SMB_USERNAME, 
-                            password=self.SMB_PASSWORD)
-        except Exception as e:
-            print(f"Error accessing SMB share: {e}")
-            return
-
-        def copy_single_file(file_name):
-            src_path = os.path.join(src_dir, file_name).replace("\\", "/")
-            dst_path = os.path.join(dst_local, file_name)
-            
-            # Use a large buffer (4MB) to maximize throughput
-            buffer_size = 4 * 1024 * 1024 
-            
-            try:
-                with open_file(src_path, mode="rb", 
-                            username=self.SMB_USERNAME, 
-                            password=self.SMB_PASSWORD) as f_src:
-                    with open(dst_path, "wb") as f_dst:
-                        while True:
-                            data = f_src.read(buffer_size)
-                            if not data:
-                                break
-                            f_dst.write(data)
-                return f"Copied {file_name}"
-            except Exception as e:
-                return f"Failed {file_name}: {e}"
-
-        # 3. Execute transfers in parallel
-        print(f"Starting parallel transfer of {len(files)} files...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(copy_single_file, files))
+    def save_hs_ds_to_hdf5(self,hs_ds_file_name=None):
+        if hs_ds_file_name is not None:
+            ndi_table_directory_path = self.ndi_table_directory_path
+            file_name=f'ndi_tables_for_{hs_ds_file_name}.h5'
+            self.h5_file_path=os.path.join(ndi_table_directory_path, file_name)
         
-        print("Transfer complete.")
-        return results
-    #endregion
-    ########
-    ########
-
-    def save_hs_ds_to_hdf5(self):
-        """
-        Ultra-fast HDF5 save: 10x faster than row-by-row.
-        Uses batch processing and vectorized operations.
-        """
         # Creates keys like 'table_0', 'table_1', 'table_2'...
-        table_keys = [f"table_{i}" for i in range(len(self.spectral_img_df))]
+        size=len(self.spectral_img_df)
+        table_keys = [f"table_{i}_{time.time_ns()}" for i in range(size)]
         self.spectral_img_df['table_key'] = table_keys
         
         # Extract all NDI tables at once (much faster!)
@@ -191,9 +141,29 @@ class HyperSpectralDsCreation(DatasetCreation):
         
         self.logger.info(f"Saved {len(ndi_tables)} NDI tables to {self.h5_file_path}")
         
-        # Clean up
+        # Clean up - drop the ndi_table from the dataframe
         self.spectral_img_df.drop('NDI_df', axis=1, inplace=True)
     
+    def check_annotation_file_validation(self, annot_df):
+        issues = []
+    
+        for image_name in annot_df['image_name'].unique():
+            labels = annot_df[annot_df['image_name'] == image_name]['label_name']
+            duplicate_labels = labels[labels.duplicated()]
+            
+            if len(duplicate_labels) > 0:
+                issues.append({
+                    'image_name': image_name,
+                    'duplicate_labels': duplicate_labels.tolist()
+                })
+        
+        if issues:
+            for issue in issues:
+                self.logger.error(f"  - {issue['image_name']}: {issue['duplicate_labels']}")
+            raise ValueError (f"Found {len(issues)} images with duplicate labels:")   
+        
+       
+
     def create_dataset(self):
 
         if self.data_source == 'server':
@@ -205,7 +175,6 @@ class HyperSpectralDsCreation(DatasetCreation):
         
         return spectral_img_df,gray_for_HS_imgs
 
-    #######
     '''
      Tree diagram of the hyper spectral folder in the server
         <PROJECT NAME>
@@ -249,7 +218,10 @@ class HyperSpectralDsCreation(DatasetCreation):
                         annot_df = pd.read_csv(f)
                     self.logger.info(f"Saving annotation file to: {local_annotation_file_path}")
                     annot_df.to_csv(local_annotation_file_path)
+                    self.check_annotation_file_validation(annot_df)
                     self.logger.info("Annotation file downloaded successfully")
+
+
                 except Exception as e:
                     self.logger.error(f"Failed to download annotation file: {e}")
                     self.logger.error(f"Annotation error location: {e.__traceback__()}")
@@ -359,10 +331,11 @@ class HyperSpectralDsCreation(DatasetCreation):
             # create keys to map between the spectral_img_df and h5 file
             if self.COMPUTE_NDI and self.ndi_storage_method=='hdf5':
                 #save the hyperspectral dataset to hdf5
-                self.save_hs_ds_to_hdf5()
+                hs_ds_file_name=self.set_hs_ds_file_name()
+                self.save_hs_ds_to_hdf5(hs_ds_file_name)
                 
             # save the hyperspectral dataset to csv
-            self.save_hs_ds_to_csv()
+            self.save_hs_ds_to_csv(hs_ds_file_name)
             
             # map 
             if self.map_hs_and_th_ds:
@@ -398,13 +371,20 @@ class HyperSpectralDsCreation(DatasetCreation):
         raise NotImplementedError("Local data source is not implemented yet")
 
    
+    def set_hs_ds_file_name(self):
+        rmt_folder=f'{self.RAW_DATA_FOLDER}_{self.DATE_DIR_NAME}'
+        dt=self.formatted_datetime
+        hs_ds_file_name=f"hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}"
+        return hs_ds_file_name
 
-    def save_hs_ds_to_csv(self):
+    def save_hs_ds_to_csv(self,hs_ds_file_name=None):
+        if hs_ds_file_name is None:
+            hs_ds_file_name=self.set_hs_ds_file_name()
         datasets_paths=self.dataset_folder
         rmt_folder=f'{self.RAW_DATA_FOLDER}_{self.DATE_DIR_NAME}'
         dt=self.formatted_datetime
-        self.spectral_img_df.to_csv(f"{datasets_paths}/hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}.csv",index=False)
-        self.logger.info(f'new file created at : {datasets_paths}/hyper_sp_imgs_dataset_created_at_{dt}_from_{rmt_folder}.csv')
+        self.spectral_img_df.to_csv(f"{datasets_paths}/{hs_ds_file_name}.csv",index=False)
+        self.logger.info(f'new file created at : {datasets_paths}/{hs_ds_file_name}')
 
       #load hyper-spectral_df and set the path to the gray images assosiated with the hs images
     def load_hs_df(self,hs_df_path,

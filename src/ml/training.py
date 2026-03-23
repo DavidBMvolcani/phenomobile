@@ -69,18 +69,23 @@ class Training():
             task: Task type - 'regression' or 'classification' (default: 'regression')
             model: Specific model to use (default: all models)
         """
+
+        self.logger = logger
+
         # Use ConfigManager for all path resolution
         if config is None:
-            raise ValueError("config parameter is required")
-        
-        self.logger = logger
-        
-        self.config = config
-        self.home_path = config.config.get('home_path')
-        self.datasets_paths = config.config.get('datasets_path')
-       
-        # Load dataset using ConfigManager path resolution
-        dataset_path = config.get_dataset_path(dataset_name)
+            try:
+                dataset_path =dataset_name
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f"Error loading dataset: {e}")
+                raise
+        else:
+            self.config = config
+            # Load dataset using ConfigManager path resolution
+            dataset_path = config.get_dataset_path(dataset_name)
+
+
         self.df = pd.read_csv(dataset_path)
         self.original_df = self.df.copy()
         
@@ -265,11 +270,14 @@ class Training():
         split=False,
         test_size=0.2):
 
-        self.logger.info(f"Split dataset to train and test: {split}")
+        if self.logger is not None:
+            self.logger.info(f"Split dataset to train and test: {split}")
         if split:
-            self.logger.info(f"Test size: {test_size}")
+            if self.logger is not None:
+                self.logger.info(f"Test size: {test_size}")
         else:
-            self.logger.info("No split to train and test")
+            if self.logger is not None:
+                self.logger.info("No split to train and test")
         #  Split Data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
         
@@ -282,11 +290,13 @@ class Training():
             results_df.loc[idx,'model_name']= model_name
 
             if(split):
-                self.logger.info(f"Fitting model {model_name} with split data. test size: {test_size}")
+                if self.logger is not None:
+                    self.logger.info(f"Fitting model {model_name} with split data. test size: {test_size}")
                 reg_model.fit(X_train,y_train)
                 y_pred = reg_model.predict(X_test)
             else:
-                self.logger.info(f"Fitting model {model_name} without split data")
+                if self.logger is not None:
+                    self.logger.info(f"Fitting model {model_name} without split data")
                 reg_model.fit(X,y)
                 y_pred = reg_model.predict(X)
                 y_test=y

@@ -158,36 +158,6 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
            
         return results_df
     
-    # def filter_df_by_category(self, df, condition, indicator):
-    #     """
-    #     Override with anthocyanin-specific filtering logic.
-        
-    #     PARAMETERS:
-    #     - df: dataframe to filter
-    #     - condition: filtering condition (e.g., 'White and Blue Led', 'White Led', 'Shade', 'Control')
-    #     - indicator: column name to filter on
-        
-    #     RETURNS:
-    #     - Filtered dataframe
-    #     """
-    #     if condition == 'White and Blue Led':
-    #         values = self.categories.get('RED_white_blue_led_ids', []) + \
-    #                  self.categories.get('GREEN_white_blue_led_ids', [])
-    #     elif condition == 'White Led':
-    #         values = self.categories.get('RED_white_led_ids', []) + \
-    #                  self.categories.get('GREEN_white_led_ids', [])
-    #     elif condition == 'Shade':
-    #         values = self.categories.get('RED_Shade_ids', []) + \
-    #                  self.categories.get('GREEN_Shade_ids', [])
-    #     elif condition == 'Control':
-    #         values = self.categories.get('RED_Control_ids', []) + \
-    #                  self.categories.get('GREEN_Control_ids', [])
-    #     else:
-    #         values = []
-        
-    #     # Filter the dataframe
-    #     res_df = df[df[indicator].isin(values)]
-    #     return res_df
 
     def _handle_classification_task(self, ml: TrainingClass, features: List[str], target: str, args: Dict) -> pd.DataFrame:
         """Handle classification task evaluation."""

@@ -173,3 +173,5 @@ logs/
 # Local configuration
 local_config.json
 config/local_*.json
+
+*:Zone.Identifier

@@ -7,6 +7,7 @@ import os
 import sys
 import pandas as pd
 import numpy as np
+import h5py
 
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -25,21 +26,24 @@ from core.datasets_creation.rgb_ds_creation import RgbDsCreation
 
 from abc import ABC, abstractmethod
 
+from dotenv import load_dotenv
+
 
 class DatasetCreationWorkflow:
     """Workflow for creating datasets from raw data."""
     
-    def __init__(self, config: ConfigManager):
+    def __init__(self, configManager: ConfigManager):
         """
         Initialize dataset creation workflow.
         
         Args:
-            config: Configuration manager instance
+            configManager: Configuration manager instance
         """
-        self.config = config
+        self.configManager = configManager
         self.logger = get_logger('dataset_creation')
-        self.flir_path = config.get_flir_path()
+        self.flir_path = configManager.get_flir_path()
     
+  
     @log_execution_time
     def create_datasets(self, args: Dict) -> None:
         """
@@ -60,7 +64,7 @@ class DatasetCreationWorkflow:
         # Get config and experiment settings
       
     
-        HS_dataset_creation_parameters = self.config.get('HS_dataset_creation_parameters', {})
+        HS_dataset_creation_parameters = self.configManager.get('HS_dataset_creation_parameters', {})
         SPLIT=HS_dataset_creation_parameters.get('SPLIT_IMAGE_TO_OBJECTS')
         ROTATE_IMAGE=HS_dataset_creation_parameters.get('ROTATE_IMAGE')
 
@@ -69,29 +73,33 @@ class DatasetCreationWorkflow:
         HS_ndvi_threshold = HS_dataset_creation_parameters.get('ndvi_threshold')
         HS_hsv_filter_thresholds = HS_dataset_creation_parameters.get('hsv_filter_thresholds',{})
         
-        RGB_dataset_creation_parameters = self.config.get('RGB_dataset_creation_parameters', {})
+        RGB_dataset_creation_parameters = self.configManager.get('RGB_dataset_creation_parameters', {})
         RGB_ANNOTATION_FILE_NAME = RGB_dataset_creation_parameters.get('ANNOTATION_FILE')
         
-        home_dir = self.config.get('home_path')
-        paths = self.config.get('paths', {})
-        download_folder = paths.get('download_folder')
-        dataset_folder = self.config.get('datasets_path')
+        home_dir = self.configManager.get('home_path')
+        paths = self.configManager.get('paths', {})
+        download_folder = self.configManager.get('download_path')
+        dataset_folder = self.configManager.get('datasets_path')
         self.dataset_folder = dataset_folder
-        formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        arg_create_ndi_table = args.get('create_ndi_table')
-        FlirImageExtractor_path = self.config.get('FlirImageExtractor_path')
+        self.formatted_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.COMPUTE_NDI = args.get('create_ndi_table')
+        self.ndi_table_directory_path=self.configManager.get('ndi_table_directory_path','{}')
+
+        self.save_ndi_table_as=self.configManager.get('save_ndi_table_as','hdf5')
+        
+        
+        FlirImageExtractor_path = self.configManager.get('FlirImageExtractor_path')
 
         # Get data source
-        self.data_source = self.config.get('data_source')
+        data_src=self.configManager.get('data_source')
+        self.data_source = data_src['type']
         if self.data_source == 'server':
-            if not self.config.get('env_file'):
-                raise ValueError("ENV_FILE must be True when data_source is 'server'")
             self.logger.info("Loading environment variables from .env file")
             self.setup_paths_from_env_file()
         else:
             self.logger.info("Using local data source")
             self.setup_paths_from_config()
-            self.RAW_DATA_FOLDER = self.config.get('download_folder')
+            self.RAW_DATA_FOLDER = self.configManager.get('download_folder')
 
         # Get dataset creation flags
         hs = args.get('hs', False)
@@ -108,13 +116,19 @@ class DatasetCreationWorkflow:
                 map_hs_and_th_ds=map_hs_and_th_ds,
                 annotation_file_name=HS_ANNOTATION_FILE_NAME,
                 split_image_to_objects=SPLIT,
-                rotate_image=ROTATE_IMAGE,
                 home_dir=home_dir,
+                rotate_image=ROTATE_IMAGE,
+                
                 download_folder=download_folder,
-                formatted_datetime=formatted_datetime,
+                dataset_folder=self.dataset_folder,
+                formatted_datetime=self.formatted_datetime,
+
                 data_source=self.data_source,
                 ndi_tuple=ndi_tuple,
-                COMPUTE_NDI=arg_create_ndi_table,
+                COMPUTE_NDI=self.COMPUTE_NDI,
+                ndi_table_directory_path=self.ndi_table_directory_path,
+                ndi_storage_method=self.save_ndi_table_as,
+
                 SMB_USERNAME=self.SMB_USERNAME,
                 SMB_PASSWORD=self.SMB_PASSWORD,
                 SMB_SERVER=self.SMB_SERVER,
@@ -122,11 +136,14 @@ class DatasetCreationWorkflow:
                 RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
                 YEAR_DIR_NAME=self.server_year_dir_name,
                 DATE_DIR_NAME=self.server_date_dir_name,
+               
+
                 object_filter_method=HS_object_filter_method,
                 ndvi_threshold=HS_ndvi_threshold,
                 hsv_filter_thresholds=HS_hsv_filter_thresholds
             )
             self.spectral_img_df, self.gray_for_HS_imgs = hs_ds.create_dataset()
+        
         if th:
             self.logger.info("Creating TH dataset")
             th_ds = ThermalDsCreation(
@@ -134,7 +151,8 @@ class DatasetCreationWorkflow:
                 map_hs_and_th_ds=map_hs_and_th_ds,
                 home_dir=home_dir,
                 download_folder=download_folder,
-                formatted_datetime=formatted_datetime,
+                dataset_folder=self.dataset_folder,
+                formatted_datetime=self.formatted_datetime,
                 data_source=self.data_source,
                 FlirImageExtractor_path=FlirImageExtractor_path,
                 SMB_USERNAME=self.SMB_USERNAME,
@@ -152,10 +170,10 @@ class DatasetCreationWorkflow:
                 logger=self.logger,
                 home_dir=home_dir,
                 download_folder=download_folder,
-                formatted_datetime=formatted_datetime,
+                dataset_folder=self.dataset_folder,
+                formatted_datetime=self.formatted_datetime,
                 data_source=self.data_source,
                 annotation_file_name=RGB_ANNOTATION_FILE_NAME,
-                dataset_folder=self.dataset_folder,
                 SMB_USERNAME=self.SMB_USERNAME,
                 SMB_PASSWORD=self.SMB_PASSWORD,
                 SMB_SERVER=self.SMB_SERVER,
@@ -163,7 +181,7 @@ class DatasetCreationWorkflow:
                 RAW_DATA_FOLDER=self.RAW_DATA_FOLDER,
                 server_year_dir_name=self.server_year_dir_name,
                 server_date_dir_name=self.server_date_dir_name,
-                config=self.config
+                config=self.configManager  
             )
             self.rgb_img_df = rgb_ds.create_dataset()
 
@@ -208,7 +226,7 @@ class DatasetCreationWorkflow:
         self.server_date_dir_name = os.environ.get("date")  
     
     def setup_paths_from_config(self):
-        self.RAW_DATA_FOLDER = self.config.get('download_folder')
+        self.RAW_DATA_FOLDER = self.configManager.get('download_folder')
 
         self.SMB_USERNAME = None
         self.SMB_PASSWORD = None
@@ -248,7 +266,7 @@ class DatasetCreationWorkflow:
 class DatasetMergeWorkflow(ABC):
     """Workflow for merging hyperparameter and reference datasets."""
     
-    def __init__(self, config: ConfigManager):
+    def __init__(self, configManager: ConfigManager):
         pass
     
     @abstractmethod
@@ -259,14 +277,14 @@ class DatasetMergeWorkflow(ABC):
 class MLTrainingWorkflow:
     """Workflow for ML model training and evaluation."""
     
-    def __init__(self, config: ConfigManager):
+    def __init__(self, configManger: ConfigManager):
         """
         Initialize ML training workflow.
         
         Args:
-            config: Configuration manager instance
+            configManager: Configuration manager instance
         """
-        self.config = config
+        self.configManager = configManger
         self.logger = setup_logger('ml_training', level='INFO')  # Explicitly set INFO level
     
     @log_execution_time
@@ -280,7 +298,7 @@ class MLTrainingWorkflow:
         log_step("Initializing ML training")
         
         # Get training parameters
-        dataset_path = self.config.get_dataset_path(args.get('dataset'))
+        dataset_path = self.configManager.get_dataset_path(args.get('dataset'))
         features = args.get('features')
         target = args.get('target')
         task = args.get('task', 'regression')
@@ -295,7 +313,7 @@ class MLTrainingWorkflow:
         from ml.training import Training as TrainingClass
         ml = TrainingClass(
             dataset_name=dataset_path,
-            config=self.config,
+            config=self.configManager,
             task=task,
             model=model
         )
@@ -316,7 +334,7 @@ class MLTrainingWorkflow:
         self.logger.info(f"Results shape: {results_df.shape}")
         
         # Save results to CSV
-        outputs_dir = self.config.ensure_output_dir()
+        outputs_dir = self.configManager.ensure_output_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         csv_path = os.path.join(outputs_dir, f"model_results_{timestamp}.csv")
         results_df.to_csv(csv_path, index=False)
@@ -373,14 +391,14 @@ class MLTrainingWorkflow:
 class PlottingWorkflow:
     """Workflow for generating plots from datasets."""
     
-    def __init__(self, config: ConfigManager):
+    def __init__(self, configManager: ConfigManager):
         """
         Initialize plotting workflow.
         
         Args:
             config: Configuration manager instance
         """
-        self.config = config
+        self.configManager = configManager
         self.logger = get_logger(__name__)
     
     def generate_plots(self, args: Dict) -> None:
@@ -424,7 +442,7 @@ class PlottingWorkflow:
     
     def _save_plot(self, plt, plot_name: str, args: Dict) -> None:
         """Save plot to file and optionally display."""
-        outputs_dir = self.config.ensure_output_dir()
+        outputs_dir = self.configManager.ensure_output_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         plot_path = os.path.join(outputs_dir, f"{plot_name}_{timestamp}.png")
         
@@ -439,33 +457,33 @@ class PlottingWorkflow:
 
 
 
-def get_workflow(workflow_type: str, config: ConfigManager):
+def get_workflow(workflow_type: str, configManager: ConfigManager):
     """
     Factory function to get workflow instance.
     
     Args:
         workflow_type: Type of workflow ('create', 'merge', 'train', 'plot')
-        config: Configuration manager instance
+        configManager: Configuration manager instance
         
     Returns:
         Workflow instance
     """
     workflows = {
         'create': DatasetCreationWorkflow,
-        'merge': _get_workflow_class('merge', config),
-        'train': _get_workflow_class('train', config),
-        'plot': _get_workflow_class('plot', config)
+        'merge': _get_workflow_class('merge', configManager),
+        'train': _get_workflow_class('train', configManager),
+        'plot': _get_workflow_class('plot', configManager)
     }
     
     if workflow_type not in workflows:
         raise ValueError(f"Unknown workflow type: {workflow_type}")
     
-    return workflows[workflow_type](config)
+    return workflows[workflow_type](configManager)
 
 
-def _get_workflow_class(workflow_type: str,config: ConfigManager):
+def _get_workflow_class(workflow_type: str,configManager: ConfigManager):
     """Get appropriate workflow class based on project."""
-    metadata = config.get('metadata', {})
+    metadata = configManager.get('metadata', {})
     project_name = metadata.get('project_name', '')
     
     if workflow_type == 'train':

@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Debug Phenomobile Merge",
+            "name": "Python: Debug Phenomobile Anthocyanin Workflow",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
@@ -10,7 +10,8 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "create",
-                "--rgb",
+                "--hs",
+                "--create_ndi_table"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"

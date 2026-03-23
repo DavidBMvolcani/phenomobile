@@ -104,52 +104,46 @@ phenomobile/
 ### Core Base Classes
 
 ```python
-# Abstract Base Classes
-ABC
-├── ml.training.Training (ABC)
-│   └── ml.anthocyanin_training.AnthocyaninTraining
-└── cli.workflows.DatasetMergeWorkflow (ABC)
-    └── cli.anthocyanin_workflow.AnthocyaninDatasetMergeWorkflow
+# Base configuration and logging
+src/utils/config.py (Config)
+src/utils/logger.py (Logger)
+
+# Dataset creation workflows
+src/core/datasets_creation/hyper_spectral_ds_creation.py (HyperSpectralDsCreation)
+src/core/datasets_creation/thermal_ds_creation.py (ThermalDsCreation)
+src/core/datasets_creation/rgb_ds_creation.py (RGBDsCreation)
+
+# Image processing classes
+src/image_processing/hyper_spectral_image.py (HyperSpectralImage)
+src/image_processing/thermal_image.py (ThermalImage)
+src/image_processing/rgb_image.py (RGBImage)
+
+# ML training classes
+src/ml/training.py (TrainingClass)
+src/plotting/base_plots.py (BasePlots)
+src/plotting/anthocyanin_plots.py (AnthocyaninPlots)
 ```
 
-### Image Processing Hierarchy
+### Project-Specific Workflows
 
 ```python
-# Image Processing Classes
-image_processing.ImageProcessing
-├── image_processing.HyperSpectralImage
-├── image_processing.RgbImage
-└── image_processing.ThermalImage
-```
-
-### Dataset Creation Classes
-
-```python
-# Dataset Creation
-core.datasets_creation.HyperSpectralDsCreation
-core.datasets_creation.ThermalDsCreation
-core.datasets_creation.RgbDsCreation
-core.datasets_creation.MergeParameterDs
-```
-
-### Workflow Classes
-
-```python
-# Workflow Classes
-cli.workflows.DatasetCreationWorkflow
-cli.workflows.MLTrainingWorkflow
-cli.workflows.PlottingWorkflow
-└── cli.anthocyanin_workflow.*
+# Anthocyanin project
+src/cli/anthocyanin_workflow.py (AnthocyaninWorkflow)
+src/cli/anthocyanin_workflow.py
     ├── AnthocyaninMLTrainingWorkflow
     ├── AnthocyaninDatasetMergeWorkflow
     └── AnthocyaninPlottingWorkflow
+
+# Corn project (placeholder)
+src/cli/corn_workflow.py (CornWorkflow)
 ```
 
-### Configuration Management
+### CLI Interface
 
 ```python
-# Configuration
-utils.config.ConfigManager
+src/main.py (Main CLI)
+src/cli/commands.py (Command parsing)
+src/cli/workflows.py (Workflow dispatch)
 ```
 
 ## 4. CLI Command Flow Diagrams
@@ -604,19 +598,60 @@ cProfile.run('workflow.create_datasets(args)')
 &nbsp;&nbsp;&nbsp;&nbsp;12.1.6. [Data Access Patterns](#data-access-patterns)
 &nbsp;&nbsp;&nbsp;&nbsp;12.1.7. [Experimental Categories](#experimental-categories)
 
-### Raw Data
+### 12.0 reference dataset
+this are dataset that contain the anthocyanin values for each catalog_id.
+their names are in the table below:
 
+
+-  Anthocyanin_05_12_2025.csv  
+-  Anthocyanin_09_12_2025.csv  
+-  Anthocyanin_17_12_2025.csv  
+-  Anthocyanin_25_12_2025.csv  
+-  Anthocyanin_31_12_2025.csv  
+-  Anthocyanin_29_01_2026.csv  
+-  Anthocyanin_05_02_2026.csv  
+
+
+### 12.1 Raw Data
 The Anthocyanin project processes multiple types of imaging data to detect anthocyanin levels in lettuce plants. The raw data is organized differently depending on whether it's stored locally or accessed from a remote server.
 
-### 12.1.1. Data Sources
+Raw data includes all original imaging files (RGB,Hyper Spectral) and annotation files.
 
-The project utilizes three main types of imaging data:
+#### Data Types:
+- **Hyperspectral Images**: Multi-band spectral data captured with specialized sensors  
+- **RGB Images**: Standard red-green-blue color photography
+- **Annotation Files**: Bounding box coordinates and object labels
 
-1. **RGB Images** - Standard color photographs for visual analysis
-2. **Hyperspectral Images** - Multi-wavelength spectral data (.hdr/.img format)
-3. **Thermal Images** - Temperature distribution data (.tiff/.csv format)
+#### Data Organization:
+```
+phenomobile/
+├── datasets/                    # Processed datasets ready for ML
+│   ├── hyperspectral/            # Spectral imaging datasets
+│   ├── thermal/                 # Thermal imaging datasets  
+│   └── rgb/                    # Color photography datasets
+├── images/                      # Raw image files (original format)
+├── pickled_objects/             # Serialized data objects (masks, features)
+└── outputs/                     # Generated results and plots
+```
 
-#### 12.1.1.1. HS: Hyper-spectral
+#### Access Patterns:
+- **Local Access**: Direct file system access for stored data
+- **Server Access**: SMB/network protocol for remote data sources
+- **Database Access**: (Future) SQL/NoSQL database connections
+
+### 12.2. Data Processing Pipeline
+Raw data flows through processing pipeline to generate ML-ready datasets:
+
+1. **dataset_creation**: Raw files → processing classes
+2. **dataset_merge**: merge parameters dataset with reference dataset
+3. **dataset_training**: train merged dataset with ML models
+
+
+#### 12.2.1. dataset_creation
+
+
+
+#### 12.2.1.1. HS: Hyper-spectral
 
 In the Anthocyanin project, hyperspectral images contain multiple lettuce objects (plants) per image. The processing pipeline involves splitting these objects and computing vegetation indices for each individual plant.
 
@@ -624,7 +659,7 @@ In the Anthocyanin project, hyperspectral images contain multiple lettuce object
 
 The project uses a configuration-driven approach to split hyperspectral images into individual objects:
 
-1. **Binary Image Creation** - First, a binary image is created in the `HyperSpectralImage` class using predefined methods (typically NDVI thresholding, configurable via project settings)
+1. **Binary Image Creation** - First, a binary image is created in the `HyperSpectralImage` class using predefined methods ( NDVI thresholding, configurable via project config file)
 
 2. **Object Separation** - The binary image is sent to the `ImageProcessing` class, which uses bounding box coordinates from CSV annotation files to separate individual lettuce objects
 
@@ -652,7 +687,101 @@ The splitting behavior is controlled by:
 - `ANNOTATION_FILE` - Path to bounding box CSV file
 - Rotation parameters for image orientation correction
 
-### 12.1.2. Local Data Organization
+- in conclusion the following datasets created from the Raw Data:
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_17-02-38_from_BneiAtarot_20260204.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_14-44-15_from_BneiAtarot_20260128.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_14-27-44_from_BneiAtarot_20260121.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_14-02-03_from_BneiAtarot_20251229.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_13-56-57_from_BneiAtarot_20251223.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_13-08-42_from_BneiAtarot_20251209.csv
+  - hyper_sp_imgs_dataset_created_at_2026-03-18_12-04-47_from_BneiAtarot_20251201.csv
+
+##### NDI Tables
+
+we compute for each image the NDI (Normalized Difference Index) values for each object (lettuce) and store them in a table. for each hyper spectral dataset we create an hdf5 file that contains the NDI tables. for each hyper spectral dataset we append column called "'table_key' so every object (row) have unique number in the format "table_i_ts"
+that identical to the relevant "table_key" in the corrspond hdf5.
+In conclusion we map between the rows in the hyper spectral datasets with the hdf5 files with the same "table_key".
+
+- we merge al hdf5 file to one file and store it in the drive in this link: [here](https://drive.google.com/drive/folders/11_cNknHdyJZ4nwxaM62JcW068jCFKynS?usp=drive_link)
+
+#### 12.2.1.2. RGB
+
+we filter the objects ( lettuces) by masks that generated by SAM model
+this configuration set in section ""mask_computation_method" in the project config. file
+
+the masks are stored in the drive in this link: [here](https://drive.google.com/drive/folders/1cnDjDFe9hy8Ok3a-ZNg84-6mCaaC0VBT?usp=drive_link)
+
+the datasets names that created from the Raw Data are:
+
+- rgb_imgs_dataset_03_12_25.csv
+- rgb_imgs_dataset_07_12_25.csv
+- rgb_imgs_dataset_16_12_25.csv
+- rgb_imgs_dataset_23_12_25.csv
+- rgb_imgs_dataset_25_12_25.csv
+- rgb_imgs_dataset_28_01_26.csv
+- rgb_imgs_dataset_01_02_26.csv
+
+#### 12.2.2. dataset_merge
+
+the mergeing between the parameters dataset and the reference dataset
+is enable by the "label_name" column in the parameters dataset with the same logic column in the reference dataset that called "catalog_id"( e.g :R1,G10,...)
+
+the merge enable by the cli command:
+ 
+```
+python main.py merge --params_dataset "name_of_dataset.csv" --ref_dataset "name_of_reference_dataset.csv"
+```
+for example:
+```
+python main.py merge --params_dataset "hyper_sp_imgs_dataset_created_at_2026-03-18_12-04-47_from_BneiAtarot_20251201.csv" --ref_dataset "Anthocyanin_05_12_2025.csv"
+```
+
+under the hood the an ilumnination column is added to the merged dataset defined by the project configuration file. 
+
+#### 12.2.2.1 HS: Hyper-spectral
+
+here the table of the mapping between the hyper spectral datasets and tha reference datasets:
+
+| Hyper-spectral Dataset | Reference Dataset |
+|------------------------|-------------------|
+| `hyper_sp_imgs_dataset...BneiAtarot_20251201.csv` | `Anthocyanin_05_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20251209.csv` | `Anthocyanin_09_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20251223.csv` | `Anthocyanin_25_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20251229.csv` | `Anthocyanin_31_12_2025.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20260128.csv` | `Anthocyanin_29_01_2026.csv` |
+| `hyper_sp_imgs_dataset...BneiAtarot_20260204.csv` | `Anthocyanin_05_02_2026.csv` |
+
+
+#### 12.2.2.2 RGB: RGB
+
+the mapping between the rgb datasets with the reference datasets show in the table below:
+
+| RGB Dataset | Reference Dataset |
+|-------------|-------------------|
+| `rgb_imgs_dataset_03_12_25.csv` | `Anthocyanin_05_12_2025.csv` |
+| `rgb_imgs_dataset_07_12_25.csv` | `Anthocyanin_09_12_2025.csv` |
+| `rgb_imgs_dataset_16_12_25.csv` | `Anthocyanin_17_12_2025.csv` |
+| `rgb_imgs_dataset_23_12_25.csv` | `Anthocyanin_25_12_2025.csv` |
+| `rgb_imgs_dataset_25_12_25.csv` | `Anthocyanin_31_12_2025.csv` |
+| `rgb_imgs_dataset_28_01_26.csv` | `Anthocyanin_29_01_2026.csv` |
+| `rgb_imgs_dataset_01_02_26.csv` | `Anthocyanin_05_02_2026.csv` |
+
+the next step was to combine all the completed dataset togather to one file:
+- 'Anthocyanin_with_rgb_051225-050226.csv'
+
+From this file, we filtered out records with negative anthocyanin values (likely due to a defective test) and records with outlier anthocyanin values as identified by the boxplot test. so the final dataset called:
+- 'Anthocyanin_with_rgb_051225-050226_clean.csv'
+
+
+
+#### 12.2.3. dataset_training
+
+
+
+
+### 12.3 Data Storage Organization
+
+### 12.3.1. Local Data Organization
 
 For local processing, the raw data follows this structure:
 
@@ -673,7 +802,7 @@ phenomobile/
 
 **Note**: Currently, hyperspectral and thermal image processing from local folders is not implemented. These data types must be accessed from the server.
 
-### 12.1.3. Server Data Organization
+### 12.3.2. Server Data Organization
 
 When using server-based data source (configured via `.env` file), the data is organized hierarchically:
 
@@ -696,7 +825,7 @@ When using server-based data source (configured via `.env` file), the data is or
 │   └── <ANNOTATION_FILE>.csv  # Bounding box annotations (optional)
 ```
 
-### 12.1.4. Folder Types and Contents
+### 12.4. Folder Types and Contents
 
 - **RGB/**: Contains standard RGB image files for visual analysis
 - **HS/**: Hyperspectral images in .hdr/.img format with spectral wavelength data
@@ -704,7 +833,7 @@ When using server-based data source (configured via `.env` file), the data is or
 - **<NUMBER_X*>**: Individual experiment folders representing different experimental conditions or time points
 - **<ANNOTATION_FILE>.csv**: Bounding box annotations for object detection and image segmentation
 
-### 12.1.5. Server Connection Configuration
+### 12.5. Server Connection Configuration
 
 To access server data, configure the `.env` file with:
 
@@ -718,14 +847,8 @@ year= YYYY (for example: 2025)
 date= MM-DD (for example: 03-12)
 ```
 
-### 12.1.6. Data Access Patterns
 
-1. **Local RGB Processing**: Direct file system access to local RGB images
-2. **Server Access**: SMB connection for hyperspectral and thermal data
-3. **Annotation Integration**: CSV files containing bounding box coordinates for object segmentation
-4. **Date-Based Organization**: Data organized by experimental dates for temporal analysis
-
-### 12.1.7. Experimental Categories
+### 12.7. Experimental Categories
 
 The Anthocyanin project uses specific LED treatment categories defined in `anthocyanin_config.json`:
 
@@ -741,3 +864,20 @@ The Anthocyanin project uses specific LED treatment categories defined in `antho
 These categories help organize the experimental data for different lighting conditions and their effects on anthocyanin production in lettuce plants.
 
 This manual provides a comprehensive guide for developers working with the Phenomobile codebase. It covers the architecture, class hierarchy, command flows, and development patterns needed to effectively maintain and extend the project.
+
+
+
+## 12.8 training results
+
+### 12.8.1 ML models for Anthocyanin_with_rgb parameters
+
+We trained multiple Linear Regression models for the regression task of Anthocyanin level prediction on the Anthocyanin_with_rgb parameters datasets. The R² and RMSE metrics were computed by comparing predicted vs actual values.
+
+| Dataset Name | Parameters | R² | RMSE |
+|-------------|------------|----|------|
+| Anthocyanin_with_rgb_051225-050226.csv | huePlantMean, satPlantMean, valPlantMean | 0.60 | 0.22 |
+| Anthocyanin_with_rgb_051225-050226.csv | huePlantMedian, satPlantMedian, valPlantMedian | 0.64 | 0.21 |
+| Anthocyanin_with_rgb_051225-050226_clean.csv | huePlantMean, satPlantMean, valPlantMean | 0.716 | 0.16 |
+| Anthocyanin_with_rgb_051225-050226_clean.csv | huePlantMedian, satPlantMedian, valPlantMedian, huePlantStd, satPlantStd, valPlantStd | 0.707 | 0.164 |
+      
+

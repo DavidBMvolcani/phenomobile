@@ -133,20 +133,23 @@ class AnthocyaninPlot(BasePlot):
             ax.scatter(x_points, y_points, marker=mark, label=labels[mark])
 
 
-    def plot_anthocyanin_linear_regression(
-        trainable_features, target, df,
-        indicator='', 
-        color_map={}, 
+    def plot_anthocyanin_linear_regression(self,
+        trainable_feature,
+        target,
+        df,
+        indicator='label_name', 
+        color_map=None, 
         condition=None,
         plot_separate=False, 
         show=True,
         categories: Dict = None, 
-        save_plot: bool = False):
+        save_plot: bool = True,
+        plot_path: str = None):
         """
         Anthocyanin-specific linear regression plotting.
         
         PARAMETERS:
-        - trainable_features: list of feature column names
+        - trainable_feature: predictable feature
         - target: target column name
         - df: dataframe containing the data
         - indicator: column name for point indicators
@@ -162,8 +165,8 @@ class AnthocyaninPlot(BasePlot):
 
         
         # Helper function to plot one dataframe
-        def plot_single(ax, sub_df, title_suffix=''):
-            X = sub_df[trainable_features[0]].values.reshape(-1, 1)
+        def plot_single(ax, sub_df, title_suffix='',color_map=None):
+            X = sub_df[trainable_feature].values.reshape(-1, 1)
             y = sub_df[target].values
             
             lr = LinearRegression()
@@ -178,7 +181,7 @@ class AnthocyaninPlot(BasePlot):
             
             # Plot points with anthocyanin-specific styling
             if target == 'Anthocyanin':
-                if not color_map:
+                if color_map is None:
                     color_map = self.get_anthocyanin_color_map(categories)
                 self.set_anthocyanin_categories_shapes_in_plot(
                     ax, X, y, sub_df, target, indicator, categories
@@ -187,7 +190,7 @@ class AnthocyaninPlot(BasePlot):
                 ax.scatter(X, y, label='Data Points')
             
             # Formatting
-            ax.set_xlabel(trainable_features[0])
+            ax.set_xlabel(trainable_feature)
             ax.set_ylabel(target)
             ax.set_title(f'Linear Regression {title_suffix} (R²={r2:.3f}, RMSE={rmse:.3f})')
             ax.grid(True)
@@ -202,9 +205,9 @@ class AnthocyaninPlot(BasePlot):
             for ax, cat in zip(axes, categories):
                 # Filter by category (would need specific implementation)
                 sub_df = df  # Placeholder - would need filter_df_by_category
-                plot_single(ax, sub_df, title_suffix=f'{cat}')
+                plot_single(ax, sub_df, title_suffix=f'{cat}', color_map=color_map)
                 if save_plot:
-                    plt.savefig(f'anthocyanin_regression_{cat}.png')
+                    plt.savefig(plot_path)
             
             # Hide any unused axes
             for i in range(len(categories), len(axes)):
@@ -213,9 +216,9 @@ class AnthocyaninPlot(BasePlot):
             plt.tight_layout()
         else:
             plt.figure(figsize=(10, 5))
-            plot_single(plt.gca(), df, title_suffix='Linear Regression')
+            plot_single(plt.gca(), df, title_suffix='Linear Regression', color_map=color_map)
             if save_plot:
-                plt.savefig('anthocyanin_regression.png')
+                plt.savefig(plot_path)
         
         if show:
             plt.show()

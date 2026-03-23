@@ -1,0 +1,63 @@
+
+##################
+##  RGB
+##################
+
+#create
+
+python main.py create --rgb
+
+
+# merge
+
+
+
+ 
+
+
+# train -mean
+
+
+
+
+python main.py train --dataset "Anthocyanin_with_rgb_051225-050226.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
+
+python main.py train --dataset "Anthocyanin_with_rgb_051225-050226_clean.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
+
+ 
+
+# train -median
+
+
+python main.py train --dataset "Anthocyanin_with_rgb_051225-050226.csv" --feature "valPlantMedian,satPlantMedian,huePlantMedian,Anthocyanin" --target  Anthocyanin 
+
+python main.py train --dataset "Anthocyanin_with_rgb_051225-050226_clean.csv" --feature "valPlantMedian,satPlantMedian,huePlantMedian,Anthocyanin" --target  Anthocyanin
+
+
+python main.py train --dataset "Anthocyanin_with_rgb_051225-251225.csv" --feature "valPlantMedian,satPlantMedian,huePlantMedian,Anthocyanin" --target  Anthocyanin --filter light
+
+
+
+
+
+
+##################
+##  HS
+##################
+
+#create
+
+python main.py create --hs
+
+python main.py create --hs --create_ndi_table
+
+
+# merge
+
+python main.py merge --params_dataset "hyper_sp_imgs_dataset_created_at_2026-03-18_12-04-47_from_BneiAtarot_20251201.csv" --ref_dataset "Anthocyanin_05_12_2025.csv"
+
+
+# train
+
+python main.py train --dataset "Anthocyanin_with_hs_051225-050226.csv" --feature "ndvi_mean,evi_mean,lai_mean,Anthocyanin" --target  Anthocyanin --filter light
+

@@ -148,6 +148,7 @@ RAW_DATA/
 pickled_objects/
 outputs/
 images/
+ndi_tables/
 *.png
 *.jpg
 *.jpeg

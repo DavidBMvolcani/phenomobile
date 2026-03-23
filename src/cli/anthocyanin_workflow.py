@@ -218,19 +218,29 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
             # Use plotting module for single feature plotting
             self.logger.info("Generating linear regression plot")
             
-            plot_feature = [features[0]]  # First feature
+            plot_feature = predictive_features[0]  # First feature
+            
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            outputs_dir = self.config.ensure_output_dir()
+            plot_path = f'''{outputs_dir}/anthocyanin_regression_for_{plot_feature}_{ts}.png'''
             plt = self.plot_cls.plot_anthocyanin_linear_regression(
-                plot_feature, target, ml.df,
-                indecator='catalog id',
-                plot_separate=plot_separate,
-                show=False,
-                categories=self.categories,
-                save_plot=True
+                plot_feature, 
+                target, 
+                ml.df, 
+                'label_name', # 4th position maps to indicator
+                None,         # 5th position maps to color_map 
+                None,         # 6th position maps to condition
+                plot_separate, 
+                False, 
+                self.categories,
+                True,
+                plot_path
             )
+           
         # more than one feature
         else:
             outputs_dir = self.config.ensure_output_dir()
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             # Use plotting module for prediction vs actual plotting
             self.logger.info("Generating prediction vs actual plot")
             
@@ -240,7 +250,8 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
                         features, target, ml.df[ml.df['Illumination'] == cond],
                         show=False )
                     plot_path = os.path.join(outputs_dir,
-                         f"anthocyanin_regression_{cond}_{timestamp}.png")
+                         f'''anthocyanin_regression_for_{",".join(predictive_features)}_
+                         filtered_by_{cond}_{ts}.png''')
                     # Save the plot
                     self.plot_cls.save_plot(plt, plot_path)
             else:
@@ -248,13 +259,13 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
                     features, target, ml.df,
                     show=False
                 )
-                # Save the plot
-                plot_path = os.path.join(outputs_dir, f"anthocyanin_regression_{timestamp}.png")
+                plot_path = f'''{outputs_dir}/anthocyanin_regression_for_{",".join(predictive_features)}_{ts}.png'''
                 self.plot_cls.save_plot(plt, plot_path)
         
         # Close the plot to free memory
         plt.close()
-                    
+
+# does this class neccssary ??                    
 class AnthocyaninPlottingWorkflow(PlottingWorkflow):
     def __init__(self, config: ConfigManager):
         super().__init__(config)
@@ -273,7 +284,7 @@ class AnthocyaninPlottingWorkflow(PlottingWorkflow):
         
         plt = self.plot_cls.plot_anthocyanin_linear_regression(
             features, target, df,
-            indicator=args.get('indicator', 'catalog id'),
+            indicator=args.get('indicator', 'label_name'),
             condition=args.get('condition'),
             plot_separate=args.get('plot_separate', False),
             show=False,

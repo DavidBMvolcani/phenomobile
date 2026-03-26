@@ -135,7 +135,6 @@ def _add_train_parser(subparsers) -> None:
     
     train_parser.add_argument(
         '--features',
-        required=True,
         help='Comma-separated list of feature columns'
     )
     
@@ -150,6 +149,11 @@ def _add_train_parser(subparsers) -> None:
         choices=['regression', 'classification'],
         default='regression',
         help='ML task type (default: regression)'
+    )
+    train_parser.add_argument(
+        '--compute_r2_score_for_ndi_tables',
+        action='store_true',
+        help='Compute R2 score for NDI tables'
     )
     
     train_parser.add_argument(
@@ -289,6 +293,12 @@ def _validate_arguments(args_dict: Dict) -> None:
     
     # Validate train command
     elif args_dict.get('command') == 'train':
+        # there two options of training :one with given features 
+        # and another with ndi_tables that store in files (csv or hdf5)
+        # and their path cofigured in config file
+        if not args_dict.get('features') and not args_dict.get('compute_r2_score_for_ndi_tables'):
+            raise ValueError("At least one of --features or --compute_r2_score_for_ndi_tables must be specified for train command")
+
         if args_dict.get('features'):
             # Parse comma-separated features, handling parentheses and quotes
             features_str = args_dict['features']

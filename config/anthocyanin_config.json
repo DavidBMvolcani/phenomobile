@@ -18,7 +18,10 @@
         "sample_params is not relveant in this project"
       ],
       "split_dataset_to_train_and_test": "split the dataset to train and test",
-      "test_size": "the size of the test dataset"
+      "test_size": "the size of the test dataset",
+      "target_transform_method": ["the method to transform the target variable",
+                 "sqrt or log"],
+      "task": "the task to perform (regression or classification)"
       },
       "parameters": {
               "target": "Anthocyanin",
@@ -26,7 +29,11 @@
               "group_by_col": "catalog id",
               "kind_of_merged": "as_it",
               "split_dataset_to_train_and_test": false,
-              "test_size": 0.2
+              "test_size": 0.2,
+              "target_transform": false,
+              "target_transform_method": "log",
+              "task": "regression",
+              "fix_method": "KEEP ROWS"
       },
   "experiment_settings": {
       "dataset_folder": "datasets/BneiAtarot"
@@ -87,7 +94,14 @@
         "the choices are: csv, hdf5",
         "csv: save the ndi table as a csv file",
         "hdf5: save the ndi table as a hdf5 file"
-      ]
+      ],
+      "READ_NDI_TABLES_METHOD": "from_hdf5",
+      "_READ_NDI_TABLES_METHOD_comment": [
+        "the choices are: from_hdf5, from_csv",
+        "from_hdf5: read the ndi table from a hdf5 file",
+        "from_csv: read the ndi table from a csv file"
+      ],
+      "H5_FILE_PATH": "ndi_tables/ndi_tables_for_hyper_sp_imgs_dataset_20251201_20260204.h5"
       
   }
 }

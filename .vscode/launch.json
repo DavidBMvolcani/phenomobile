@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+    
         {
             "name": "Python: Debug Phenomobile Anthocyanin Workflow",
             "type": "debugpy",
@@ -8,10 +9,11 @@
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
-            "args": [
-                "create",
-                "--hs",
-                "--create_ndi_table"
+        "args": [
+                "train",
+                "--dataset", "Anthocyanin_with_rgb_051225-050226_clean.csv",
+                "--features", "valPlantMean,satPlantMean,huePlantMean,Anthocyanin",
+                "--target", "Anthocyanin"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"

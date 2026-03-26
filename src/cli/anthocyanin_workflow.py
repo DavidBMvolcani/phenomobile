@@ -8,6 +8,7 @@ functionality.
 
 from .workflows import MLTrainingWorkflow, DatasetMergeWorkflow, PlottingWorkflow
 from ml.training import Training as TrainingClass
+from ml.train_on_ndi_tables import TrainOnNdiTables
 from utils.config import ConfigManager
 from typing import List, Dict
 import pandas as pd
@@ -53,18 +54,18 @@ class AnthocyaninDatasetMergeWorkflow(DatasetMergeWorkflow):
 class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
     """Specialized workflow for anthocyanin ML training."""
     
-    def __init__(self, config: ConfigManager,):
+    def __init__(self, config: ConfigManager):
         """Initialize anthocyanin ML training workflow."""
         super().__init__(config)  # This initializes self.logger from parent class
         self.logger.info("AnthocyaninMLTrainingWorkflow initialized successfully")
 
-        self.categories = self.config.get('categories', {})
+        self.categories = self.configManager.get('categories', {})
         self.plot_cls = AnthocyaninPlot(self.categories)
-        self.split_dataset_to_train_and_test = self.config.get('split_dataset_to_train_and_test', False)
-        self.test_size = self.config.get('test_size', 0.2)
+        self.split_dataset_to_train_and_test = self.configManager.get('split_dataset_to_train_and_test', False)
+        self.test_size = self.configManager.get('test_size', 0.2)
     
     def _handle_regression_task(self,
-         ml: 'training',
+         ml: TrainingClass,
          features: List[str],
          target: str, 
          args: Dict,
@@ -73,13 +74,18 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
         """Handle regression task with anthocyanin-specific filtering."""
         results_df = pd.DataFrame()
         
+        cfg_parameters = self.configManager.get('parameters', {})
+        transform_target = cfg_parameters.get('target_transform', False)
+        transform_target_method = cfg_parameters.get('target_transform_method', 'sqrt')
+        if transform_target:
+            self.logger.info("Target transformation enabled by the method in config")
+
         # Apply filtering if specified (only for Anthocyanin projects)
         if args.get('filter') == 'light':
         
             self.logger.info(" applying light filtering")
             
             # Get filter indicator from config
-            cfg_parameters = self.config.get('parameters', {})
             df_column_for_filtering = cfg_parameters.get('column_to_filter_by', 'Illumination')
             
            
@@ -95,7 +101,10 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
                     filter_cond=condition_name,
                     df_column_for_filtering=df_column_for_filtering,
                     split=split,
-                    test_size=test_size
+                    test_size=test_size,
+                    transformed_target=transform_target,
+                    transformed_target_method=transform_target_method
+
                 )
                 # Add condition name to each row
                 filtered_results[df_column_for_filtering] = condition_name
@@ -103,18 +112,24 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
 
         # No filtering
         else:
-            results_df = ml.evaluate_regression_models(features,
-                 target, split=split, test_size=test_size)
+            results_df = ml.evaluate_regression_models(
+                features,
+                target, 
+                split=split, 
+                test_size=test_size,
+                transformed_target=transform_target,
+                transformed_target_method=transform_target_method 
+            )
         return results_df
     
-    def train_models(self, args: Dict) -> None:
-        """Train models with anthocyanin-specific plotting."""
+    def _train_models(self, args: Dict) -> pd.DataFrame:
         # Get training parameters
-        dataset_path = self.config.get_dataset_path(args.get('dataset'))
+        dataset_path = self.configManager.get_dataset_path(args.get('dataset'))
         features = args.get('features')
         target = args.get('target')
         task = args.get('task', 'regression')
         model = args.get('model')
+        
         
         self.logger.info(f"Training {task} models")
         self.logger.info(f"Dataset: {dataset_path}")
@@ -122,15 +137,19 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
         self.logger.info(f"Target: {target}")
         
         
+        cfg_parameters = self.configManager.get('parameters', {})
+        fix_method = cfg_parameters.get('fix_method', 'KEEP ROWS')
+        task = cfg_parameters.get('task', 'regression')
+        model = cfg_parameters.get('model', None)
         # Initialize training
         ml = TrainingClass(
             dataset_name=dataset_path,
-            config=self.config,
+            configManager=self.configManager,
+            fix_method=fix_method,
             task=task,
             model=model,
-            logger=self.logger,
+            logger=self.logger
         )
-        
         
         # Handle different tasks
         if task == 'regression':
@@ -143,19 +162,60 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
             raise ValueError(f"Unsupported task type: {task}")
         
         # Save results to CSV
-        outputs_dir = self.config.ensure_output_dir()
+        outputs_dir = self.configManager.ensure_output_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         csv_path = os.path.join(outputs_dir, f"model_results_{timestamp}.csv")
         results_df.to_csv(csv_path, index=False)
         self.logger.info(f"Results saved to: {csv_path}")
         self.logger.info(f"About to start plot generation...")
         
-        
         # Generate plots for regression tasks
-
         if task == 'regression':
             self._generate_plots(ml, features, target, args)
-           
+        
+        return results_df
+
+    def compute_r2_score_for_ndi_tables(self,args: Dict):
+        dataset_path = args.get('dataset')
+        target = args.get('target')
+        task = args.get('task')
+        config = self.configManager
+
+        ml =TrainOnNdiTables (
+            dataset_name=dataset_path,
+            target=target,
+            config=config,
+            task=task,
+            logger=self.logger,
+        )
+        r2_score_df=ml.compute_r2_score_for_ndi_cube()
+
+        best_wl1, best_wl2, best_r2 = ml.get_best_ndi_combination_r2()
+        self.logger.info(f"Best combination: {best_wl1} and {best_wl2} with R² = {best_r2:.4f}")
+        
+        # Save results to CSV
+        outputs_dir = self.configManager.ensure_output_dir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_path = os.path.join(outputs_dir, f"model_results_{timestamp}.csv")
+        r2_score_df.to_csv(csv_path)
+        self.logger.info(f"R2 score results saved to: {csv_path}")
+
+        #save plot
+        plot = ml.plot_r2_results()
+        plot_path = os.path.join(outputs_dir, f"r2_score_plot_{timestamp}.png")
+        plot.savefig(plot_path)
+        self.logger.info(f"R2 score plot saved to: {plot_path}")
+
+        return r2_score_df
+
+    def train_models(self, args: Dict) -> pd.DataFrame:
+        compute_r2_scores = args.get('compute_r2_score_for_ndi_tables', False)
+        if compute_r2_scores:
+            self.logger.info("Computing R2 score for NDI tables")
+            results_df=self.compute_r2_score_for_ndi_tables(args)
+        else:
+            """Train models with anthocyanin-specific plotting."""
+            results_df = self._train_models(args) 
         return results_df
     
 
@@ -191,7 +251,7 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
             plot_feature = predictive_features[0]  # First feature
             
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            outputs_dir = self.config.ensure_output_dir()
+            outputs_dir = self.configManager.ensure_output_dir()
             plot_path = f'''{outputs_dir}/anthocyanin_regression_for_{plot_feature}_{ts}.png'''
             plt = self.plot_cls.plot_anthocyanin_linear_regression(
                 plot_feature, 
@@ -209,7 +269,7 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
            
         # more than one feature
         else:
-            outputs_dir = self.config.ensure_output_dir()
+            outputs_dir = self.configManager.ensure_output_dir()
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             # Use plotting module for prediction vs actual plotting
             self.logger.info("Generating prediction vs actual plot")
@@ -220,8 +280,7 @@ class AnthocyaninMLTrainingWorkflow(MLTrainingWorkflow):
                         features, target, ml.df[ml.df['Illumination'] == cond],
                         show=False )
                     plot_path = os.path.join(outputs_dir,
-                         f'''anthocyanin_regression_for_{",".join(predictive_features)}_
-                         filtered_by_{cond}_{ts}.png''')
+                         f'''anthocyanin_regression_for_{",".join(predictive_features)}_filtered_by_{cond}_{ts}.png''')
                     # Save the plot
                     self.plot_cls.save_plot(plt, plot_path)
             else:
@@ -250,7 +309,7 @@ class AnthocyaninPlottingWorkflow(PlottingWorkflow):
             raise ValueError("Both --features and --target required for anthocyanin plots")
         
         # Get categories from config if available
-        categories = self.config.get('categories', {})
+        categories = self.configManager.get('categories', {})
         
         plt = self.plot_cls.plot_anthocyanin_linear_regression(
             features, target, df,

@@ -17,17 +17,14 @@ python main.py create --rgb
 
 # train -mean
 
-
-
-
-python main.py train --dataset "Anthocyanin_with_rgb_051225-050226.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
+python main.py train --dataset "Anthocyanin_with_rgb_051225-050226_clean_log_trans.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
 
 python main.py train --dataset "Anthocyanin_with_rgb_051225-050226_clean.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin
 
- 
+python main.py train --dataset "Anthocyanin_with_rgb_051225-050226_clean.csv" --features "valPlantMean,satPlantMean,huePlantMean,Anthocyanin" --target  Anthocyanin --filter light
+
 
 # train -median
-
 
 python main.py train --dataset "Anthocyanin_with_rgb_051225-050226.csv" --feature "valPlantMedian,satPlantMedian,huePlantMedian,Anthocyanin" --target  Anthocyanin 
 
@@ -60,4 +57,29 @@ python main.py merge --params_dataset "hyper_sp_imgs_dataset_created_at_2026-03-
 # train
 
 python main.py train --dataset "Anthocyanin_with_hs_051225-050226.csv" --feature "ndvi_mean,evi_mean,lai_mean,Anthocyanin" --target  Anthocyanin --filter light
+
+
+
+# compute r2 score for ndi tables
+python main.py train --dataset "Anthocyanin_with_hs_051225-050226_sqrt_trans.csv" --compute_r2_score_for_ndi_tables --target  Anthocyanin --task regression
+
+python main.py train --dataset "Anthocyanin_with_hs_051225-050226_log_trans.csv" --compute_r2_score_for_ndi_tables --target  Anthocyanin --task regression
+
+
+
+#####
+#
+# BATCH of commands
+#
+###
+
+
+##  merge hyper spectral datasets with ndi table keys
+
+python main.py merge --params_dataset hyper_sp_imgs_dataset_created_at_2026-03-22_09-22-38_from_BneiAtarot_20251201.csv --ref_dataset Anthocyanin_2025_12_05.csv
+python main.py merge --params_dataset hyper_sp_imgs_dataset_created_at_2026-03-22_11-57-16_from_BneiAtarot_20251209.csv --ref_dataset Anthocyanin_2025_12_09.csv
+python main.py merge --params_dataset hyper_sp_imgs_dataset_created_at_2026-03-22_13-12-15_from_BneiAtarot_20251223.csv --ref_dataset Anthocyanin_2025_12_25.csv
+python main.py merge --params_dataset hyper_sp_imgs_dataset_created_at_2026-03-22_14-50-11_from_BneiAtarot_20251229.csv --ref_dataset Anthocyanin_2025_12_31.csv
+python main.py merge --params_dataset hyper_sp_imgs_dataset_created_at_2026-03-22_15-06-33_from_BneiAtarot_20260128.csv --ref_dataset Anthocyanin_2026_01_29.csv
+python main.py merge --params_dataset hyper_sp_imgs_dataset_created_at_2026-03-22_15-30-31_from_BneiAtarot_20260204.csv --ref_dataset Anthocyanin_2026_02_05.csv
 

@@ -85,7 +85,7 @@ class ConfigManager:
     def load_environment(self) -> None:
         """Load environment variables from .env file."""
         if not self.env_file or self.config.get('data_source') == 'local':
-            self.logger.info("Loading raw data for local data source")
+            print("Loading raw data for local data source")
             return
             
         self.env_path = self.root_path / self.env_file
@@ -120,28 +120,57 @@ class ConfigManager:
         
         if self.config['src_path'] not in sys.path:
             sys.path.insert(0, self.config['src_path'])
+        
+        ######################
+        # TRAINING PARAMETERS
+        ######################
+        training_parameters = self.config.get('parameters', {})
+        self.config['split_dataset_to_train_and_test'] = training_parameters.get('split_dataset_to_train_and_test', False)
+        self.config['target_transform_method'] = training_parameters.get('target_transform_method', 'sqrt')
+        self.config['target_transform'] = training_parameters.get('target_transform', False)
+        self.config['fix_method'] = training_parameters.get('fix_method', 'KEEP ROWS')
+        self.config['task'] = training_parameters.get('task', 'regression')
+        ################
+        # RGB PARAMETERS
+        ################
 
         # Get pickle mask path -this is the path where the pickled masks are stored
         # this path is relevant where you chosse to compute the objects mask
         # from pre-computed masks in the config file
-        pickle_mask_path = self.config.get('pickle_mask_path')
+
+        rgb_parameters = self.config.get('RGB_dataset_creation_parameters') 
+        pickle_mask_path = rgb_parameters.get('pickle_mask_path')
         if pickle_mask_path:
             self.config['pickle_mask_path'] = str(self.root_path / pickle_mask_path)
         else:
             self.config['pickle_mask_path'] = str(self.root_path / 'pickled_objects')
 
+          
+        ################
+        # HS parameters
+        ################
+        hs_parameters = self.config.get('HS_dataset_creation_parameters') 
+        
         # get ndi tables storage method
-        self.config['ndi_storage_method']=self.config.get('save_ndi_table_as')   
-
+        self.config['ndi_storage_method']= hs_parameters.get('save_ndi_table_as')
 
         # Get ndi table path
-        ndi_table_path = self.config.get('ndi_table_directory_path')
+        ndi_table_path = hs_parameters.get('ndi_table_directory_path')
         if ndi_table_path:
             os.makedirs(self.root_path / ndi_table_path, exist_ok=True)
             self.config['ndi_table_directory_path'] = str(self.root_path / ndi_table_path)
         else:
             os.makedirs(self.root_path / 'ndi_tables', exist_ok=True)
             self.config['ndi_table_directory_path'] = str(self.root_path / 'ndi_tables')
+
+        # get H5_FILE_PATH full path
+        h5_file_path = hs_parameters.get('H5_FILE_PATH')
+        if h5_file_path:
+            try:
+                self.config['H5_FILE_PATH'] = str(self.root_path / h5_file_path)
+                print(f"H5_FILE_PATH: {self.config['H5_FILE_PATH']}")
+            except Exception as e:
+                raise ValueError(f"Error getting H5_FILE_PATH: {e}")
     
     def get(self, key: str, default: Optional = None) -> Optional:
         """

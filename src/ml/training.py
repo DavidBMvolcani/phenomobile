@@ -44,7 +44,7 @@ class Training():
 
     # PARAMETERS:
     #    - dataset_name: name of the dataset that will be used for training
-    #    - config: ConfigManager instance for path resolution and configuration
+    #    - configManager: ConfigManager instance for path resolution and configuration
     #    - fix_method: method that will be chosen when dataset has null values 
     #    - task: string from one of this: ['regression', 'classification'] 
     #      default value is 'regression'
@@ -53,27 +53,17 @@ class Training():
     #      options are ['linear regression']
     def __init__(self, 
         dataset_name, 
-        config=None, 
+        configManager=None, 
         fix_method='KEEP ROWS', 
         task='regression', 
         model=None,
-        logger=None
+        logger=None,
         ):
-        """
-        Initialize training class with dataset and configuration.
-        
-        Args:
-            dataset_name: Name of the dataset to use for training
-            config: ConfigManager instance for path resolution and configuration
-            fix_method: Method to handle null values in dataset (default: 'KEEP ROWS')
-            task: Task type - 'regression' or 'classification' (default: 'regression')
-            model: Specific model to use (default: all models)
-        """
 
         self.logger = logger
 
         # Use ConfigManager for all path resolution
-        if config is None:
+        if configManager is None:
             try:
                 dataset_path =dataset_name
             except Exception as e:
@@ -81,10 +71,9 @@ class Training():
                     self.logger.error(f"Error loading dataset: {e}")
                 raise
         else:
-            self.config = config
+            self.configManager = configManager
             # Load dataset using ConfigManager path resolution
-            dataset_path = config.get_dataset_path(dataset_name)
-
+            dataset_path = configManager.get_dataset_path(dataset_name)
 
         self.df = pd.read_csv(dataset_path)
         self.original_df = self.df.copy()
@@ -93,6 +82,7 @@ class Training():
         if self.does_df_has_null_values(self.df):
             self.remove_null_from_df(fix_method)
         
+      
         # Set up models based on task
         if task == 'regression':
             # set regression models
@@ -136,6 +126,18 @@ class Training():
 
         
      # endregion
+    
+    def set_transformation_for_the_target(self, method,target):
+        if method == 'sqrt':
+            self.df[target] = np.sqrt(self.df[target])
+        elif method == 'log':
+            epsilon = 1e-6
+            self.df[target] = np.log(self.df[target]+ epsilon)
+        elif method == 'none':
+            pass
+        else:
+            raise ValueError(f"Unknown transformation method: {method}")
+    
     #######
     #
     # CLASSIFICATION MODELS
@@ -268,7 +270,8 @@ class Training():
         pretty_names_map, 
         reg_models, 
         split=False,
-        test_size=0.2):
+        test_size=0.2
+        ):
 
         if self.logger is not None:
             self.logger.info(f"Split dataset to train and test: {split}")
@@ -301,8 +304,18 @@ class Training():
                 y_pred = reg_model.predict(X)
                 y_test=y
             
-            results_df.loc[idx,'R2']= r2_score(y_test,y_pred)
-            results_df.loc[idx,'RMSE']= root_mean_squared_error(y_test,y_pred)
+            self.y_test = y_test
+            self.y_pred = y_pred
+            if self.transform_target:
+                if self.target_transform_method == 'sqrt':
+                    results_df.loc[idx,'R2']= r2_score(np.square(y_test),np.square(y_pred))
+                    results_df.loc[idx,'RMSE']= root_mean_squared_error(np.square(y_test),np.square(y_pred))
+                elif self.target_transform_method == 'log':
+                    results_df.loc[idx,'R2']= r2_score(np.exp(y_test),np.exp(y_pred))
+                    results_df.loc[idx,'RMSE']= root_mean_squared_error(np.exp(y_test),np.exp(y_pred))
+            else:
+                results_df.loc[idx,'R2']= r2_score(y_test,y_pred)
+                results_df.loc[idx,'RMSE']= root_mean_squared_error(y_test,y_pred)
         return results_df
 
 
@@ -348,7 +361,18 @@ class Training():
         filter_cond=None,
         df_column_for_filtering=None,
         split=False,
-        test_size=0.2):
+        test_size=0.2,
+        transformed_target=False,
+        transformed_target_method='sqrt' # options: 'sqrt', 'log', 'none'
+        ):
+
+        # Handle target transformation
+        self.transform_target = transformed_target
+        self.target_transform_method = transformed_target_method
+        if self.transform_target:
+            self.set_transformation_for_the_target(
+                self.target_transform_method,target)
+
         if filter_df and filter_cond and df_column_for_filtering:
             df=self.df.copy()
             df=self.filter_df_by_category(df,filter_cond,df_column_for_filtering)
@@ -361,7 +385,12 @@ class Training():
         return results_df
     
 
-  
+    def get_predictions(self):
+        try:
+            return self.y_test, self.y_pred
+        except AttributeError:
+            print("No predictions available. Run evaluate_regression_models first.")
+            return None, None
 
    
 
